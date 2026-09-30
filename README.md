@@ -3,7 +3,7 @@
 ### Native SwiftUI investigation of iPhone traffic, Mac process-aware packets, and Unified Log evidence
 
 <p align="center">
-  <img src="assets/rvi-pktap-correlator-logo.png" width="220" alt="RVI + PKTAP Correlator circular red, black, and white logo">
+  <img src="assets/rvi-pktap-correlator-logo.png" width="220" alt="RVI + PKTAP Correlator dark app icon with three white traffic paths joined by turquoise evidence nodes">
 </p>
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-000000?logo=apple&logoColor=white)
@@ -64,23 +64,11 @@ These are screenshots of the packaged native app. Analysis screenshots use its *
 
 Device readiness, Apple RVI availability, and decoder availability are shown separately. This is a setup state, not a running capture or a claim of zero packet loss.
 
-### Unified timeline
-
-![Synthetic RVI, PKTAP, and Unified Log timeline](assets/screenshots/timeline.jpg)
-
-Each row retains its source and record identity. Original timestamps remain available in the observation inspector; timeline display uses the Mac's local timezone.
-
 ### Relationship review
 
 ![Synthetic relationship with evidence-strength explanation](assets/screenshots/relationship.jpg)
 
 The inspector explains why a candidate appears. Unverified clocks remain unverified in the demonstration; the screenshot is not a physical-device attribution result.
-
-### Supporting observation
-
-![Direct observation and protocol evidence](assets/screenshots/observation.jpg)
-
-Open a cited record to inspect observed protocol fields and distinguish them from inferred relationships.
 
 ### Interpretation guide
 
@@ -155,7 +143,7 @@ cd RVI-Correlator
 open 'dist/RVI + PKTAP Correlator.app'
 ```
 
-The script creates a release build, bundles the capture helper and demo resources, and generates the macOS `.icns` sizes from the approved logo. Open the `.app` to use the bundled icon in Finder and the Dock. The source repository does not distribute a notarized installer or prebuilt binary. The build is native to the selected toolchain/host architecture, not a universal binary.
+The script creates a release build, bundles the capture helper and demo resources, and installs the supplied macOS `.icns` icon unchanged. Open the `.app` to use the bundled icon in Finder and the Dock. The source repository does not distribute a notarized installer or prebuilt binary. The build is native to the selected toolchain/host architecture, not a universal binary.
 
 For development and tests:
 
@@ -392,7 +380,7 @@ Sources/CorrelatorApp/         SwiftUI investigation and live-session workflow
 Sources/CorrelatorApp/Samples/ Fabricated, labeled demonstration records
 Sources/CaptureHelper/        Bounded authorized macOS collectors
 Tests/CorrelatorCoreTests/     Behavior/integration tests and tiny fixtures
-scripts/                      App packaging and icon generation
+scripts/                      App packaging
 assets/                       Approved logo and real app screenshots
 ```
 
@@ -410,4 +398,4 @@ The integration boundary is existing PCAP/PCAPNG evidence and the established Ap
 
 The project code, documentation, and approved Correlator logo are available under the [MIT License](LICENSE). Copyright (c) 2026 hideouts-io.
 
-Wireshark/TShark is separately installed and licensed under GPL version 2 or later; it is not redistributed here. Apple developer/system tools remain subject to Apple's terms. `Package.swift` declares no external Swift packages. The approved logo was generated for this project using the owner's existing app-logo family as style references; it is not an Apple or Wireshark logo. No external repository code or artwork was imported for this documentation task.
+Wireshark/TShark is separately installed and licensed under GPL version 2 or later; it is not redistributed here. Apple developer/system tools remain subject to Apple's terms. `Package.swift` declares no external Swift packages. The owner-supplied branding is included in PNG, SVG, and ICNS formats. The PNG is used in the app and this README; packaging uses the supplied ICNS directly. It is not an Apple or Wireshark logo.

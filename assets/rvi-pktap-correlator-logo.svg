@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+    <linearGradient id="tile" x1="0.12" y1="0" x2="0.82" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#202C3A"/>
+      <stop offset="0.52" stop-color="#111823"/>
+      <stop offset="1" stop-color="#090D14"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#778291" stop-opacity="0.45"/>
+      <stop offset="0.45" stop-color="#4C5869" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#101622" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="68" width="896" height="896" rx="202" fill="#000000" opacity="0.12"/>
+  <rect x="64" y="64" width="896" height="896" rx="202" fill="url(#tile)"/>
+  <rect x="65.5" y="65.5" width="893" height="893" rx="200.5" fill="none" stroke="url(#rim)" stroke-width="3"/>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 262,312 H 364 C 414,312 414,382 464,382 H 762" stroke="#F0F5FC" stroke-width="46"/>
+      <path d="M 262,512 H 762" stroke="#F0F5FC" stroke-width="46"/>
+      <path d="M 262,712 H 364 C 414,712 414,642 464,642 H 762" stroke="#F0F5FC" stroke-width="46"/>
+      <path d="M 632,328 V 696" stroke="#59E0DC" stroke-width="20"/>
+      <g fill="#59E0DC" stroke="none">
+        <circle cx="632" cy="382" r="38"/>
+        <circle cx="632" cy="512" r="38"/>
+        <circle cx="632" cy="642" r="38"/>
+      </g>
+      <g fill="#111823" stroke="none">
+        <circle cx="632" cy="382" r="13"/>
+        <circle cx="632" cy="512" r="13"/>
+        <circle cx="632" cy="642" r="13"/>
+      </g>
+    </g></svg>

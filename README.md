@@ -3,7 +3,7 @@
 ### Native SwiftUI investigation of iPhone traffic, Mac process-aware packets, and Unified Log evidence
 
 <p align="center">
-  <img src="assets/rvi-pktap-correlator-logo.png" width="220" alt="RVI + PKTAP Correlator dark app icon with three white traffic paths joined by turquoise evidence nodes">
+  <img src="assets/branding-v2/github/readme-banner.png" width="1000" alt="RVI + PKTAP Correlator — Connected evidence. Clear uncertainty. Three independent paths aligned by turquoise observation markers.">
 </p>
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-000000?logo=apple&logoColor=white)
@@ -58,23 +58,13 @@ Capture and decoding have been exercised on a physical iPhone. Correlation remai
 
 These are screenshots of the packaged native app. Analysis screenshots use its **SYNTHETIC DEMO**, containing fabricated packet and log records. Example process labels, hostnames, and addresses are illustrative; they are not observations of Apple service behavior or evidence from a private device.
 
-### Session setup and capture readiness
+### Branded overview and capture readiness
 
-![Session setup and prerequisite health](assets/screenshots/setup.jpg)
+![Branded native app overview with labeled synthetic demonstration data](assets/screenshots/setup.png)
 
-Device readiness, Apple RVI availability, and decoder availability are shown separately. This is a setup state, not a running capture or a claim of zero packet loss.
+This real screenshot of the packaged development preview shows the selected **Aligned Evidence** identity, separate device/RVI/decoder readiness, import controls, and the labeled synthetic demonstration. It is a setup state, not a running capture or a claim of zero packet loss. The development preview also shows the local session-navigation and optional iPhone-log work; publication of those capabilities is separate from this artwork update.
 
-### Relationship review
-
-![Synthetic relationship with evidence-strength explanation](assets/screenshots/relationship.jpg)
-
-The inspector explains why a candidate appears. Unverified clocks remain unverified in the demonstration; the screenshot is not a physical-device attribution result.
-
-### Interpretation guide
-
-![In-app explanation of scoring and evidence limits](assets/screenshots/method.jpg)
-
-The app explains its confidence rubric, provenance, and limitations alongside the investigation workflow.
+Candidate explanations, focused evidence review, and the interpretation guide are described in the [investigation walkthrough](#investigation-walkthrough). The preserved screenshots with the previous branding remain under `assets/branding-v1/screenshots/`.
 
 ---
 
@@ -143,7 +133,7 @@ cd RVI-Correlator
 open 'dist/RVI + PKTAP Correlator.app'
 ```
 
-The script creates a release build, bundles the capture helper and demo resources, and installs the supplied macOS `.icns` icon unchanged. Open the `.app` to use the bundled icon in Finder and the Dock. The source repository does not distribute a notarized installer or prebuilt binary. The build is native to the selected toolchain/host architecture, not a universal binary.
+The script creates a release build, bundles the capture helper and demo resources, and includes the approved **01 · Aligned Evidence** icon for the app, Finder, and Dock. The [branding inventory](assets/branding-v2/ASSET-MANIFEST.md) includes editable sources, logo treatments, icon sizes, GitHub artwork, and responsive website images. Open the `.app` to use its bundled icon. The source repository does not distribute a notarized installer or prebuilt binary. The build is native to the selected toolchain/host architecture, not a universal binary.
 
 For development and tests:
 
@@ -398,4 +388,4 @@ The integration boundary is existing PCAP/PCAPNG evidence and the established Ap
 
 The project code, documentation, and approved Correlator logo are available under the [MIT License](LICENSE). Copyright (c) 2026 hideouts-io.
 
-Wireshark/TShark is separately installed and licensed under GPL version 2 or later; it is not redistributed here. Apple developer/system tools remain subject to Apple's terms. `Package.swift` declares no external Swift packages. The owner-supplied branding is included in PNG, SVG, and ICNS formats. The PNG is used in the app and this README; packaging uses the supplied ICNS directly. It is not an Apple or Wireshark logo.
+Wireshark/TShark is separately installed and licensed under GPL version 2 or later; it is not redistributed here. Apple developer/system tools remain subject to Apple's terms. `Package.swift` declares no external Swift packages. The approved Aligned Evidence branding includes original PNG, SVG, and ICNS assets. The app uses the icon and sidebar image, the README uses its banner and real packaged preview, and packaging preserves the ICNS payloads unchanged. Previous artwork is retained under `assets/branding-v1/`. It is not an Apple or Wireshark logo.

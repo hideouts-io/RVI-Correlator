@@ -1,0 +1,21 @@
+{
+  "method": "Built-in image_gen; backgrounds only. Production logo and typography are editable native SVG derived from approved concept 01.",
+  "jobs": [
+    {
+      "name": "desktop-background",
+      "prompt": "Use case: premium app website background artwork, logo-brand family. Create a polished, restrained abstract evidence landscape for RVI + PKTAP Correlator, a native macOS investigation tool aligning distinct iPhone packet, Mac packet and log observations. Palette: ice #F0F5FC, pale blue mist, midnight navy #111823 and turquoise #59E0DC. Soft fine packet paths, sparse precise hollow observation nodes, a barely visible measurement grid, delicate depth and light. Inspired by the supplied RVI-Sentinel hero's calm airy information landscape, with a new independent design. Keep streams separate. This is conceptual promotional artwork, not a screenshot. NO logo, NO app icon, NO wordmark, NO text, NO letters, NO numbers, NO shields, NO locks, NO phones, NO computers, NO interface windows, NO scores, NO checkmarks, NO arrows, NO false attribution claims. Do not reproduce the RVI-Sentinel monogram. Leave substantial clean space for a separately composited exact vector mark and typography. Composition: ultrawide 3:1 banner. The left half is very quiet near-white space; on the right and lower edge three independent fine turquoise paths bend toward three vertically aligned hollow nodes. Very subtle pale circular reference rings behind the right third. Sophisticated editorial quality, gentle mist, no dark vignette. Full bleed background only.",
+      "referenced_image_paths": [
+        "RVI-Sentinel/assets/branding-v2/website/hideouts-hero-desktop.png"
+      ],
+      "transparent_background": false
+    },
+    {
+      "name": "mobile-background",
+      "prompt": "Use case: premium app website background artwork, logo-brand family. Create a polished, restrained abstract evidence landscape for RVI + PKTAP Correlator, a native macOS investigation tool aligning distinct iPhone packet, Mac packet and log observations. Palette: ice #F0F5FC, pale blue mist, midnight navy #111823 and turquoise #59E0DC. Soft fine packet paths, sparse precise hollow observation nodes, a barely visible measurement grid, delicate depth and light. Inspired by the supplied RVI-Sentinel hero's calm airy information landscape, with a new independent design. Keep streams separate. This is conceptual promotional artwork, not a screenshot. NO logo, NO app icon, NO wordmark, NO text, NO letters, NO numbers, NO shields, NO locks, NO phones, NO computers, NO interface windows, NO scores, NO checkmarks, NO arrows, NO false attribution claims. Do not reproduce the RVI-Sentinel monogram. Leave substantial clean space for a separately composited exact vector mark and typography. Composition: portrait 9:16 mobile hero background. Very quiet near-white space across upper third; the lower two thirds contain fine curved turquoise packet paths and three vertically aligned hollow nodes, subtle pale reference rings near center. Bottom quarter quiet for readable copy. Full bleed background only.",
+      "referenced_image_paths": [
+        "RVI-Sentinel/assets/branding-v2/website/hideouts-hero-desktop.png"
+      ],
+      "transparent_background": false
+    }
+  ]
+}

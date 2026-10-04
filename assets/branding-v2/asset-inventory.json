@@ -1,0 +1,478 @@
+{
+  "identity": "01 · Aligned Evidence",
+  "date": "2026-10-04",
+  "assets": [
+    {
+      "file": "source/app-icon-master.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "Editable macOS icon master; concept 01 production reconstruction",
+      "bytes": 96386,
+      "sha256": "335e340a7cd71d145170d7abadd4182a27b078ef9739c669313824669f951ed6"
+    },
+    {
+      "file": "logos/mark-on-light.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "Transparent standalone observation mark",
+      "bytes": 27111,
+      "sha256": "5b2cc7be6f850583028e39fd0dfecb20bbdad88a2d9b3ba11fb7ca515f04ddeb"
+    },
+    {
+      "file": "logos/logo-on-light.png",
+      "width": 720,
+      "height": 240,
+      "purpose": "Transparent horizontal logo and full app name",
+      "bytes": 18706,
+      "sha256": "83b66525c12356e71f27026570de17ae3305713ac944fb50fda2bf43e7dc43b6"
+    },
+    {
+      "file": "logos/wordmark-on-light.png",
+      "width": 1050,
+      "height": 112,
+      "purpose": "Transparent wordmark without symbol",
+      "bytes": 16106,
+      "sha256": "e6f75bd16c84e6f7f601a3e8e30470a91082c047e0a4908b1b3563ca9a2709f9"
+    },
+    {
+      "file": "logos/mark-on-dark.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "Transparent standalone observation mark",
+      "bytes": 26696,
+      "sha256": "613dd84c266bd37536260a619999383779a9ce10dd3641bba9506d4d1db7cc1a"
+    },
+    {
+      "file": "logos/logo-on-dark.png",
+      "width": 720,
+      "height": 240,
+      "purpose": "Transparent horizontal logo and full app name",
+      "bytes": 18093,
+      "sha256": "653b51c823d33237085a653a04431b4b55d0caf212a3395452c0655e9bb3bca6"
+    },
+    {
+      "file": "logos/wordmark-on-dark.png",
+      "width": 1050,
+      "height": 112,
+      "purpose": "Transparent wordmark without symbol",
+      "bytes": 15679,
+      "sha256": "a1d2d8c4b374758d824927205ffc97cb1f5a07b5f02eb2514f8c3b40ec580901"
+    },
+    {
+      "file": "logos/mark-mono-black.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "Transparent standalone observation mark",
+      "bytes": 17730,
+      "sha256": "07b0b1dd24d4aad141ffafe663fd6e14dcc3a9e8eba01c078545177ec236562a"
+    },
+    {
+      "file": "logos/logo-mono-black.png",
+      "width": 720,
+      "height": 240,
+      "purpose": "Transparent horizontal logo and full app name",
+      "bytes": 11816,
+      "sha256": "697a79e926de68ea08f03fab875b4c5d96cafaa65a8589bba52f5d37c63ec3fe"
+    },
+    {
+      "file": "logos/wordmark-mono-black.png",
+      "width": 1050,
+      "height": 112,
+      "purpose": "Transparent wordmark without symbol",
+      "bytes": 10911,
+      "sha256": "0a1fafb060d34277542727d546407af8c14ad6d77382452ff78846cc0e3a55b2"
+    },
+    {
+      "file": "logos/mark-mono-white.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "Transparent standalone observation mark",
+      "bytes": 20353,
+      "sha256": "e556476aefe7a9ef8a4b8caae0a829e5a8559139c07dc7e199f2b8fea2dda9a8"
+    },
+    {
+      "file": "logos/logo-mono-white.png",
+      "width": 720,
+      "height": 240,
+      "purpose": "Transparent horizontal logo and full app name",
+      "bytes": 13186,
+      "sha256": "74ed362fdc56f6ac9346bc402b1969a8b95eec0bb173e56ba0d2b1a4fab62743"
+    },
+    {
+      "file": "logos/wordmark-mono-white.png",
+      "width": 1050,
+      "height": 112,
+      "purpose": "Transparent wordmark without symbol",
+      "bytes": 11910,
+      "sha256": "78052fa23cbc67b4f0b6ed27469ef21f76166b2e0b5df33122b8eaff053db56e"
+    },
+    {
+      "file": "icons/app-icon-light.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "Light-surface alternate icon, matching concept proof",
+      "bytes": 44335,
+      "sha256": "e08c8c6ee5159eb62f2f37a22e713b5c85b333c50e9d1604bbe2a2e511c68bb9"
+    },
+    {
+      "file": "in-app/brand-logo.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "SwiftUI sidebar, welcome panel and runtime Dock image",
+      "bytes": 96386,
+      "sha256": "335e340a7cd71d145170d7abadd4182a27b078ef9739c669313824669f951ed6"
+    },
+    {
+      "file": "github/social-preview-1280x640.png",
+      "width": 1280,
+      "height": 640,
+      "purpose": "GitHub repository social preview upload",
+      "bytes": 157998,
+      "sha256": "8e077c84be46295df59cad4a1a93a43c397467bf2b42a69125a15f6ef4e98fd1"
+    },
+    {
+      "file": "website/social-sharing-1200x630.png",
+      "width": 1200,
+      "height": 630,
+      "purpose": "hideouts.io Open Graph and link sharing",
+      "bytes": 149395,
+      "sha256": "9254d8cd61347e0a6d2ee1df0453058dcce83755e928b7764065a54e7584e455"
+    },
+    {
+      "file": "website/hero-desktop.png",
+      "width": 2000,
+      "height": 667,
+      "purpose": "Responsive wide hideouts.io app-page hero",
+      "bytes": 771530,
+      "sha256": "3627106a2dda5a1467f51d000fdd547d5ff623026782f8cccc123d123e9b747f"
+    },
+    {
+      "file": "website/hero-tablet.png",
+      "width": 1536,
+      "height": 1024,
+      "purpose": "Responsive tablet hideouts.io hero",
+      "bytes": 671285,
+      "sha256": "0eaa7ec68fa433cbdfb9613eeaa4b0947e5942cd9b08e3b6be8ba9f1f72fde53"
+    },
+    {
+      "file": "website/hero-mobile.png",
+      "width": 941,
+      "height": 1672,
+      "purpose": "Portrait mobile hideouts.io app-page hero",
+      "bytes": 1039148,
+      "sha256": "23a319f3709f2e473f661ae7e88ccb0a05ed0318f06d8628a90f923071285135"
+    },
+    {
+      "file": "website/hero-background.png",
+      "width": 2000,
+      "height": 667,
+      "purpose": "Background-only website artwork; no logo or claims",
+      "bytes": 853721,
+      "sha256": "19ad83f8176ed94cb6910c90b16b261d13985664cd96b81241dfa130e57e1f80"
+    },
+    {
+      "file": "website/project-card-1200x675.png",
+      "width": 1200,
+      "height": 675,
+      "purpose": "Editorial project-card and gallery cover",
+      "bytes": 507323,
+      "sha256": "17c06f89cb71b59c3d37a56b79086aa31c320d80c28ce71e7d46b431296be59e"
+    },
+    {
+      "file": "github/readme-banner.png",
+      "width": 1600,
+      "height": 480,
+      "purpose": "README or release page header; conceptual artwork",
+      "bytes": 607041,
+      "sha256": "5bae76a97402e61520e5e55e5381931be865bd7d8fe91a94867af1a73811dbd2"
+    },
+    {
+      "file": "icons/app-icon-16.png",
+      "width": 16,
+      "height": 16,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 639,
+      "sha256": "f29a1243e2e8beee9deacac0a3b3354b906d722bf7c12d4ab37ce2ad9f3c4559"
+    },
+    {
+      "file": "icons/app-icon-24.png",
+      "width": 24,
+      "height": 24,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 1072,
+      "sha256": "e637f52cf089597cdf83d1a6c4e33ff8b3c86cde42d8956cf321f2ac3f9c27c1"
+    },
+    {
+      "file": "icons/app-icon-32.png",
+      "width": 32,
+      "height": 32,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 1438,
+      "sha256": "af232325f32ab36a72c427f051a0c57a1445a4f3c4330160af67f5d44ecfa266"
+    },
+    {
+      "file": "icons/app-icon-48.png",
+      "width": 48,
+      "height": 48,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 2304,
+      "sha256": "d49e6019d5e9c282bc70026e088a5746197463e44c11226e8c5ffaf92d1bf29c"
+    },
+    {
+      "file": "icons/app-icon-64.png",
+      "width": 64,
+      "height": 64,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 3442,
+      "sha256": "36ea7eca1378f807c423dded31fbbac96b1d0dec52bc71740c8efb5e7194edce"
+    },
+    {
+      "file": "icons/app-icon-96.png",
+      "width": 96,
+      "height": 96,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 5318,
+      "sha256": "2c71c452d736d05452c3d31a29880c04f4c84bfa9071f34a16fbac4a39c0197a"
+    },
+    {
+      "file": "icons/app-icon-128.png",
+      "width": 128,
+      "height": 128,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 7184,
+      "sha256": "847fea8ae6e50ad65ca67bb6dc22dd8fb5ce53e6917448ff3af90915693ad215"
+    },
+    {
+      "file": "icons/app-icon-256.png",
+      "width": 256,
+      "height": 256,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 17276,
+      "sha256": "4f86f13df93a27dc53f656571261537eda7b59697e482c81b10483d6d70e2c0f"
+    },
+    {
+      "file": "icons/app-icon-512.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 40541,
+      "sha256": "6e46c4732fd4cc4f360d6d79ff6d484d26cfaaa9869b1f6721a71c110e3b35c0"
+    },
+    {
+      "file": "icons/app-icon-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "macOS app icon, Finder, Dock and small UI uses",
+      "bytes": 96386,
+      "sha256": "335e340a7cd71d145170d7abadd4182a27b078ef9739c669313824669f951ed6"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_16x16.png",
+      "width": 16,
+      "height": 16,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 639,
+      "sha256": "f29a1243e2e8beee9deacac0a3b3354b906d722bf7c12d4ab37ce2ad9f3c4559"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_16x16@2x.png",
+      "width": 32,
+      "height": 32,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 1438,
+      "sha256": "af232325f32ab36a72c427f051a0c57a1445a4f3c4330160af67f5d44ecfa266"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_32x32.png",
+      "width": 32,
+      "height": 32,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 1438,
+      "sha256": "af232325f32ab36a72c427f051a0c57a1445a4f3c4330160af67f5d44ecfa266"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_32x32@2x.png",
+      "width": 64,
+      "height": 64,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 3442,
+      "sha256": "36ea7eca1378f807c423dded31fbbac96b1d0dec52bc71740c8efb5e7194edce"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_128x128.png",
+      "width": 128,
+      "height": 128,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 7184,
+      "sha256": "847fea8ae6e50ad65ca67bb6dc22dd8fb5ce53e6917448ff3af90915693ad215"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_128x128@2x.png",
+      "width": 256,
+      "height": 256,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 17276,
+      "sha256": "4f86f13df93a27dc53f656571261537eda7b59697e482c81b10483d6d70e2c0f"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_256x256.png",
+      "width": 256,
+      "height": 256,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 17276,
+      "sha256": "4f86f13df93a27dc53f656571261537eda7b59697e482c81b10483d6d70e2c0f"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_256x256@2x.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 40541,
+      "sha256": "6e46c4732fd4cc4f360d6d79ff6d484d26cfaaa9869b1f6721a71c110e3b35c0"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_512x512.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 40541,
+      "sha256": "6e46c4732fd4cc4f360d6d79ff6d484d26cfaaa9869b1f6721a71c110e3b35c0"
+    },
+    {
+      "file": "icons/macos/RVI-Correlator.iconset/icon_512x512@2x.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "Apple macOS iconset representation",
+      "bytes": 96386,
+      "sha256": "335e340a7cd71d145170d7abadd4182a27b078ef9739c669313824669f951ed6"
+    },
+    {
+      "file": "website/favicons/favicon-16.png",
+      "width": 16,
+      "height": 16,
+      "purpose": "Project-specific browser favicon",
+      "bytes": 639,
+      "sha256": "f29a1243e2e8beee9deacac0a3b3354b906d722bf7c12d4ab37ce2ad9f3c4559"
+    },
+    {
+      "file": "website/favicons/favicon-32.png",
+      "width": 32,
+      "height": 32,
+      "purpose": "Project-specific browser favicon",
+      "bytes": 1438,
+      "sha256": "af232325f32ab36a72c427f051a0c57a1445a4f3c4330160af67f5d44ecfa266"
+    },
+    {
+      "file": "website/favicons/favicon-48.png",
+      "width": 48,
+      "height": 48,
+      "purpose": "Project-specific browser favicon",
+      "bytes": 2304,
+      "sha256": "d49e6019d5e9c282bc70026e088a5746197463e44c11226e8c5ffaf92d1bf29c"
+    },
+    {
+      "file": "website/favicons/favicon-64.png",
+      "width": 64,
+      "height": 64,
+      "purpose": "Project-specific browser favicon",
+      "bytes": 3442,
+      "sha256": "36ea7eca1378f807c423dded31fbbac96b1d0dec52bc71740c8efb5e7194edce"
+    },
+    {
+      "file": "website/favicons/favicon-128.png",
+      "width": 128,
+      "height": 128,
+      "purpose": "Project-specific browser favicon",
+      "bytes": 7184,
+      "sha256": "847fea8ae6e50ad65ca67bb6dc22dd8fb5ce53e6917448ff3af90915693ad215"
+    },
+    {
+      "file": "website/favicons/favicon-256.png",
+      "width": 256,
+      "height": 256,
+      "purpose": "Project-specific browser favicon",
+      "bytes": 17276,
+      "sha256": "4f86f13df93a27dc53f656571261537eda7b59697e482c81b10483d6d70e2c0f"
+    },
+    {
+      "file": "website/favicons/apple-touch-icon.png",
+      "width": 180,
+      "height": 180,
+      "purpose": "Website touch/bookmark image; not an iOS app icon",
+      "bytes": 4361,
+      "sha256": "5738320180b503a69e8f23faf7639ab58cb7695e0fdebf9893004e0c49054a42"
+    },
+    {
+      "file": "website/favicons/web-app-icon-192.png",
+      "width": 192,
+      "height": 192,
+      "purpose": "Website touch/bookmark image; not an iOS app icon",
+      "bytes": 12184,
+      "sha256": "7f5f1573ac6800600b339eeed3ce6d1b95ec729a38960118508aa9f9bbb4bbc1"
+    },
+    {
+      "file": "website/favicons/web-app-icon-512.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "Website touch/bookmark image; not an iOS app icon",
+      "bytes": 40541,
+      "sha256": "6e46c4732fd4cc4f360d6d79ff6d484d26cfaaa9869b1f6721a71c110e3b35c0"
+    },
+    {
+      "file": "website/social-sharing-1200x630.webp",
+      "width": 1200,
+      "height": 630,
+      "purpose": "hideouts.io Open Graph and link sharing",
+      "bytes": 34184,
+      "sha256": "18190363ab9ea5bbfa7f9089de10b6825dd0a02ffb620cc9ca6ad8d63046c96e"
+    },
+    {
+      "file": "website/hero-desktop.webp",
+      "width": 2000,
+      "height": 667,
+      "purpose": "Responsive wide hideouts.io app-page hero",
+      "bytes": 84020,
+      "sha256": "37b65892039d2e1273c4e0e5f13bbc41fbf20ce7b5053c5e0a6a9bfd12281c71"
+    },
+    {
+      "file": "website/hero-tablet.webp",
+      "width": 1536,
+      "height": 1024,
+      "purpose": "Responsive tablet hideouts.io hero",
+      "bytes": 80388,
+      "sha256": "48ea3f10b01851b2ab8c861e788e46a7616d99fb4b9a1edd43db267015db900f"
+    },
+    {
+      "file": "website/hero-mobile.webp",
+      "width": 941,
+      "height": 1672,
+      "purpose": "Portrait mobile hideouts.io app-page hero",
+      "bytes": 82598,
+      "sha256": "501078efd4acf4e63f02cb668d86b178fbbd7ef0c19158383064991df2268ba0"
+    },
+    {
+      "file": "website/hero-background.webp",
+      "width": 2000,
+      "height": 667,
+      "purpose": "Background-only website artwork; no logo or claims",
+      "bytes": 60396,
+      "sha256": "955d03354db05d69918ee771cf22c15327d33d8b11ff32b4acd0e31e18f11379"
+    },
+    {
+      "file": "website/project-card-1200x675.webp",
+      "width": 1200,
+      "height": 675,
+      "purpose": "Editorial project-card and gallery cover",
+      "bytes": 57264,
+      "sha256": "cdd31a576888e01da50b1cf9cba2ce900284c95539b33464272d3c58ee00fb58"
+    },
+    {
+      "file": "presentation/asset-overview.png",
+      "width": 1800,
+      "height": 1740,
+      "purpose": "Asset review board; conceptual artwork, not an app screenshot",
+      "bytes": 875643,
+      "sha256": "60d58824ce1b2db9c94c783535d1d8f90cf0ac113a40989ce2b5586517776436"
+    }
+  ]
+}

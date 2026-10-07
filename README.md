@@ -3,7 +3,7 @@
 ### Native SwiftUI investigation of iPhone traffic, Mac process-aware packets, and Unified Log evidence
 
 <p align="center">
-  <img src="assets/rvi-pktap-correlator-logo.png" width="220" alt="RVI + PKTAP Correlator dark app icon with three white traffic paths joined by turquoise evidence nodes">
+  <img src="assets/branding-v2/github/readme-banner.png" width="1000" alt="RVI + PKTAP Correlator — Connected evidence. Clear uncertainty. Three independent paths aligned by turquoise observation markers.">
 </p>
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-000000?logo=apple&logoColor=white)
@@ -58,30 +58,20 @@ Capture and decoding have been exercised on a physical iPhone. Correlation remai
 
 These are screenshots of the packaged native app. Analysis screenshots use its **SYNTHETIC DEMO**, containing fabricated packet and log records. Example process labels, hostnames, and addresses are illustrative; they are not observations of Apple service behavior or evidence from a private device.
 
-### Session setup and capture readiness
+### Branded overview and capture readiness
 
-![Session setup and prerequisite health](assets/screenshots/setup.jpg)
+![Branded native app overview with labeled synthetic demonstration data](assets/screenshots/setup.png)
 
-Device readiness, Apple RVI availability, and decoder availability are shown separately. This is a setup state, not a running capture or a claim of zero packet loss.
+This real screenshot of the packaged development preview shows the selected **Aligned Evidence** identity, separate device/RVI/decoder readiness, import controls, and the labeled synthetic demonstration. It is a setup state, not a running capture or a claim of zero packet loss. The development preview also shows the local session-navigation and optional iPhone-log work; publication of those capabilities is separate from this artwork update.
 
-### Relationship review
-
-![Synthetic relationship with evidence-strength explanation](assets/screenshots/relationship.jpg)
-
-The inspector explains why a candidate appears. Unverified clocks remain unverified in the demonstration; the screenshot is not a physical-device attribution result.
-
-### Interpretation guide
-
-![In-app explanation of scoring and evidence limits](assets/screenshots/method.jpg)
-
-The app explains its confidence rubric, provenance, and limitations alongside the investigation workflow.
+Candidate explanations, focused evidence review, and the interpretation guide are described in the [investigation walkthrough](#investigation-walkthrough). The preserved screenshots with the previous branding remain under `assets/branding-v1/screenshots/`.
 
 ---
 
 ## What It Does
 
 - Starts iPhone RVI, Mac PKTAP, and a targeted Mac Unified Log stream in one bounded session.
-- Discovers paired physical devices through CoreDevice; excludes simulators and requires reported USB readiness.
+- Discovers paired physical devices through CoreDevice and verifies their serials against the current USB I/O Registry; excludes simulators. A developer tunnel is not an RVI prerequisite.
 - Decodes growing PCAPNG files with separately installed TShark and refreshes the timeline during capture.
 - Imports existing PCAP/PCAPNG captures, including RVI-Sentinel output, and UTF-8 Unified Log JSON Lines.
 - Reads both raw PKTAP headers and Apple PCAPNG process/interface/direction options.
@@ -89,6 +79,8 @@ The app explains its confidence rubric, provenance, and limitations alongside th
 - Associates captured DNS answers with flows using source, client, CNAME chain, and TTL boundaries.
 - Explains shared-service candidates, rejected initiations, competing processes, and missing evidence.
 - Reviews possible TCP direct-peer traffic independently of shared-service scoring.
+- Groups direction-independent TCP/UDP five-tuples into packet sessions within one capture artifact, interface, process label, and decoder stream; cross-device relationships remain separate inferred links.
+- Opens a saved frame's original bytes on demand and highlights decoded field ranges only when TShark's reported range matches the captured bytes exactly. Fields without verified ranges remain explicitly unmapped.
 - Links relationship records to a focused timeline and supports returning to the expanded peer group.
 - Saves original evidence locally and checks finalized session manifests before reopening.
 - Offers optional, explicitly initiated current DNS/PTR lookup, separate from captured evidence and scores.
@@ -143,7 +135,7 @@ cd RVI-Correlator
 open 'dist/RVI + PKTAP Correlator.app'
 ```
 
-The script creates a release build, bundles the capture helper and demo resources, and installs the supplied macOS `.icns` icon unchanged. Open the `.app` to use the bundled icon in Finder and the Dock. The source repository does not distribute a notarized installer or prebuilt binary. The build is native to the selected toolchain/host architecture, not a universal binary.
+The script creates a release build, bundles the capture helper and demo resources, and includes the approved **01 · Aligned Evidence** icon for the app, Finder, and Dock. The [branding inventory](assets/branding-v2/ASSET-MANIFEST.md) includes editable sources, logo treatments, icon sizes, GitHub artwork, and responsive website images. Open the `.app` to use its bundled icon. The source repository does not distribute a notarized installer or prebuilt binary. The build is native to the selected toolchain/host architecture, not a universal binary.
 
 For development and tests:
 
@@ -272,6 +264,35 @@ Normalization retains these device-service events as **context**. Other retained
 
 Activity navigation requires original, nonempty boot identity and compatible process/image scope with nonzero activity identifiers. A separate `capture-context.json` records host boot samples, uptime, collection predicate and level. It is never silently substituted into an original log record. Agreeing host samples do not establish per-event identity, process lifetime, causation, or clock alignment.
 
+### Optional iPhone process logs (experimental)
+
+Before capture, enable **Include iPhone process logs**, select an installed `pymobiledevice3` executable, and enter one current **iPhone** process PID. Obtain that PID from the connected device in Console or `idevicesyslog -u <device-udid> pidlist`; do not use a Mac PID. The collector requests that PID from `com.apple.os_trace_relay`, excludes info/debug levels, and uses the same selected device as RVI. A process restart requires a fresh PID and capture. No tool, device profile, private-data entitlement, or jailbreak is installed by the app.
+
+The helper coordinates the optional fourth stream with the other collectors but runs the external logger as the session owner, **not root**, with a clean environment and `TZ=UTC`. It stops the session on a requested collector failure; it does not silently substitute another logging method. iPhone logs have a 60 MB live safety limit. Capture health displays saved bytes and decoded records; dropped-log counts are **unavailable**, not assumed zero.
+
+`iPhone OS trace` is a separate timeline source. Original collector NDJSON and stderr are preserved alongside `ios-log-config.json`, which records the service, requested PID, collector version, launcher hash, and UTC convention. These are collector-rendered records, not raw binary transport or a complete archive. The launcher hash does not attest all of its Python dependencies. A schema-3 manifest hashes all twelve session artifacts; older schema-1/2 sessions still open. Standalone iPhone logs without collection provenance are not imported.
+
+Select an RVI packet to review **iPhone log context**. Only logs bound to the same coordinated session, with a bounded explicit address/observed-hostname mention inside the chosen time window, appear as links. The inspector also counts endpoint mentions outside the window and records without matching mentions. These links are **inferred and unscored**: local/multicast addresses, hostnames, or infrastructure can be shared, and a textual mention does not establish a connection, port ownership, packet ownership, or causation. All admitted records remain visible separately; selecting one permits returning to the RVI packet. iPhone log PIDs never join Mac PKTAP PIDs or increase existing correlation scores.
+
+The tested collector (pymobiledevice3 10.11.0) renders device epoch timestamps as naive host-local text. Launching it with `TZ=UTC` makes that conversion explicit; original strings and derived epoch microseconds remain distinct. Offset stays **0 ms, alignment unverified**. Monotonic ticks are retained without conversion because boot identity and timebase are unverified. No boot UUID or activity ID is invented from `procid`, image UUIDs, or host metadata. This stream cannot establish a process lifetime or cross-device activity identity.
+
+**Method names are not interchangeable.** Unified Logging is the device's logging system; `Logger`/`OSLog` write to it, and `OSLogStore` reads a supported local or archived store. None is a public API for this Mac app to stream another iPhone's system-wide logs. `com.apple.os_trace_relay` and `com.apple.syslog_relay` are different device transports. DVT is an Instruments service family with both an activity-trace log tap and a separate network monitor, not a synonym for Unified Logging or syslog.
+
+| Method | Evidence value and limits | App status |
+|---|---|---|
+| Apple Console connected-device logging | Apple documents viewing live iPhone messages. Privacy redaction and logging policy still apply; Console is a viewer, not a documented remote streaming SDK for this app. | External reference workflow. |
+| `Logger` / `OSLog` / `OSLogStore` | Public Apple APIs to emit logs and read supported stores, including a `.logarchive`; they do not grant this Mac app a live, system-wide iPhone log stream. | No replacement for the device collector. |
+| OS trace relay via pymobiledevice3 | Structured process, subsystem/category, image and timestamp context. Third-party device protocol; available fields and reliability vary by tool/iOS release. | Optional process-scoped integration; live four-stream collection, shutdown, finalization and reopening verified on one iPhone running iOS 26.3.1. |
+| DVT activity-trace / `developer dvt oslog` | Instruments channel can expose logs and signposts, but iOS 17+ requires a developer tunnel. The installed 10.11.0 CLI stamps JSON with `datetime.now()` on the Mac, not the original device event time, and labels the command unstable. | Not integrated; its current CLI output is unsuitable for precise packet-time correlation. |
+| DVT network monitor / `developer dvt netstat` | A different Instruments channel reports device PID, local/remote socket addresses and ports, and interface index. This could add stronger **device-side endpoint evidence** than message text, but its CLI output lacks an original event timestamp and it requires a working iOS 17+ tunnel. | Candidate for a separate bounded experiment, not validated or integrated. |
+| Legacy `com.apple.syslog_relay` text stream | Useful messages, but not equivalent structured Unified Log metadata; parsing and timestamp context need a different importer. Modern idevicesyslog 1.4.0 defaults to OS trace relay; `--syslog-relay` explicitly selects legacy mode. | Not a fallback and not integrated. |
+| Offline `.logarchive` | Apple `log collect --device-udid` supports bounded retrospective collection on the tested Mac. An archive can retain more event types and metadata than this process-scoped live export, subject to retention, logging policy and redaction. | Collection and device-archive import are not integrated. Existing Mac NDJSON import must not be used to relabel device logs. |
+| Offline sysdiagnose | A broader, sensitive diagnostics bundle that normally includes `system_logs.logarchive`; useful when a specific live investigation lacks context. It is not a live stream or a guarantee of unredacted network endpoints. | Manual external workflow only. |
+
+For live logging, keep the existing optional, process-scoped OS trace relay. The short physical session's 52 records, including 14 masked messages, gave **zero qualifying packet-to-log links**. A broader stream or different log transport does not by itself establish packet ownership. Prefer a targeted offline device archive for retrospective review; test DVT network telemetry separately if a developer tunnel becomes available. Keep its device PID and endpoints separate from Mac PKTAP process identity, and require independent evidence before linking records.
+
+Sources: [Apple Unified Logging](https://developer.apple.com/documentation/os/logging/), [Apple OSLogStore](https://developer.apple.com/documentation/oslog/oslogstore), [Apple Console connected-device guide](https://support.apple.com/guide/console/log-messages-cnsl1012/1.1/mac/27), [Apple sysdiagnose guidance](https://developer.apple.com/forums/thread/739560), [pymobiledevice3 OS trace implementation](https://github.com/doronz88/pymobiledevice3/blob/master/pymobiledevice3/services/os_trace.py), [DVT services and tunnel requirements](https://github.com/doronz88/pymobiledevice3/blob/master/docs/api/dvt.md), [DVT log CLI](https://github.com/doronz88/pymobiledevice3/blob/master/pymobiledevice3/cli/developer/dvt/__init__.py), [DVT network monitor](https://github.com/doronz88/pymobiledevice3/blob/master/pymobiledevice3/services/dvt/instruments/network_monitor.py), [idevicesyslog manual](https://github.com/libimobiledevice/libimobiledevice/blob/master/docs/idevicesyslog.1). Installed `log help collect` and `log help stream` distinguish native archive collection from local live streaming; no remote-device option was found in the latter.
+
 ## Clock Alignment
 
 Start with **0 ms offsets** and **alignment unverified**. The default 250 ms matching window is a search tolerance. The initial 1,000 ms uncertainty is an explicitly labeled placeholder, not a measured accuracy estimate.
@@ -311,6 +332,8 @@ Use the app only on devices and networks you own or are authorized to investigat
 
 A preserved **77-second physical-iPhone session on 2026-09-29 UTC** completed live decoding, clean stop, schema-2 finalization, hash verification, and reopening. Private originals and detailed audit reports are intentionally not published.
 
+Optional iPhone logging was exercised in a separate short capture on **2026-09-30 UTC**: all four streams arrived, stopped, finalized with twelve matching manifest hashes, and reopened in the packaged app. Its 52 iPhone `mDNSResponder` records provided service context but **zero qualifying endpoint-context links**; hostname masking limited evidence. This does not validate every process, iOS version, disconnect scenario, interface, or positive attribution case. The external logger's drop count remains unknown.
+
 | Evidence in that bounded validation | Result |
 |---|---|
 | iPhone / Mac packets | 6,780 / 43,444 |
@@ -340,7 +363,7 @@ All raw log records in the successful run had empty boot UUIDs. The sidecar rema
 | Symptom | Check or next step |
 |---|---|
 | `rvictl` missing | Check `/Library/Apple/usr/bin/rvictl`; complete Apple's Xcode/device-support installation. A PATH check or Command Line Tools installation alone is insufficient. |
-| Device unavailable / transport unknown | Reconnect directly by USB, unlock, accept Trust, and refresh. Confirm Xcode/CoreDevice can see the physical device. Do not substitute a simulator. |
+| Device unavailable / transport unknown | Refresh after connecting and trusting the physical iPhone. Readiness requires a paired physical CoreDevice record plus a matching current Apple USB serial. An unavailable CoreDevice developer tunnel alone does not block RVI; the actual RVI service is verified at start. See [Apple's RVI setup](https://developer.apple.com/documentation/network/recording-a-packet-trace). |
 | TShark missing or decoder field unavailable | Install Wireshark/TShark at a supported path; inspect the exact missing-field diagnostic. Do not interpret a decode failure as no network activity. |
 | Mac packets but no process metadata | Verify raw PKTAP headers or Apple PCAPNG process options were preserved. A filename extension alone does not establish metadata coverage. |
 | Live refresh failed | Preserve capture files and diagnostics; distinguish decoder failure from stopped collectors. Do not assume all streams are healthy. |
@@ -359,7 +382,7 @@ Import is bounded to 50,000-frame decoder batches, 256 MB JSON and a 120-second 
 swift test -j 4
 ```
 
-The publication build passes **21 regular tests**; two physical-evidence tests are skipped unless explicitly enabled. Tests exercise real TShark import on fabricated packets, DNS expiry/scoping, PKTAP forms, clock handling, peer ambiguity, log normalization and host context. A passing synthetic suite is not fresh physical-device validation.
+The current suite contains **22 regular tests** and five opt-in physical-evidence audits. Tests exercise TShark import on fabricated packets, DNS expiry/scoping, PKTAP forms, clock handling, peer ambiguity, log normalization, host context, and iPhone timestamp validation. Private device-log replay, USB-registry replay, and four-stream replay use `RVI_IOS_LOG_AUDIT`, `RVI_USB_AUDIT`, and `RVI_IOS_SESSION_AUDIT` / `RVI_IOS_SESSION_REPORT` respectively; the audit paths must refer to retained local evidence. A passing synthetic suite is not fresh physical-device validation.
 
 For your own preserved session, run the opt-in replay with explicit private paths:
 
@@ -398,4 +421,4 @@ The integration boundary is existing PCAP/PCAPNG evidence and the established Ap
 
 The project code, documentation, and approved Correlator logo are available under the [MIT License](LICENSE). Copyright (c) 2026 hideouts-io.
 
-Wireshark/TShark is separately installed and licensed under GPL version 2 or later; it is not redistributed here. Apple developer/system tools remain subject to Apple's terms. `Package.swift` declares no external Swift packages. The owner-supplied branding is included in PNG, SVG, and ICNS formats. The PNG is used in the app and this README; packaging uses the supplied ICNS directly. It is not an Apple or Wireshark logo.
+Wireshark/TShark is separately installed and licensed under GPL version 2 or later; it is not redistributed here. Optional iPhone logging invokes a separately installed [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) executable (tested 10.11.0; GPL-3.0-or-later); its source and dependencies are not bundled or copied into this app. Apple developer/system tools remain subject to Apple's terms. `Package.swift` declares no external Swift packages. The approved Aligned Evidence branding includes original PNG, SVG, and ICNS assets. The app uses the icon and sidebar image, the README uses its banner and real packaged preview, and packaging preserves the ICNS payloads unchanged. Previous artwork is retained under `assets/branding-v1/`. It is not an Apple or Wireshark logo.

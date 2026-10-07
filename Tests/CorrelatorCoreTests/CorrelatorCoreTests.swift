@@ -10,12 +10,15 @@ import Testing
       {"hardwareProperties":{"udid":"usb-phone","reality":"physical","deviceType":"iPhone","platform":"iOS"},"deviceProperties":{"name":"USB iPhone"},"connectionProperties":{"pairingState":"paired","tunnelState":"connected","transportType":"wired"}}
     ]}}
     """
-    let devices = try parseCaptureDevices(Data(json.utf8))
+    let devices = try parseCaptureDevices(Data(json.utf8), usbSerials: ["usb-phone"])
     #expect(devices.map(\.id) == ["wifi-phone", "usb-phone"])
     #expect(devices[0].isConnected == false)
     #expect(devices[0].connection.contains("Wi-Fi"))
     #expect(devices[1].isConnected == true)
     #expect(devices[1].connection.contains("USB"))
+    let tunnelUnavailable = json.replacingOccurrences(of: "\"tunnelState\":\"connected\"", with: "\"tunnelState\":\"unavailable\"")
+    #expect(try parseCaptureDevices(Data(tunnelUnavailable.utf8), usbSerials: ["usbphone"])[1].isConnected)
+    #expect(try parseCaptureDevices(Data(json.utf8), usbSerials: []).allSatisfy { !$0.isConnected })
 }
 
 @Test func importsDecodedPKTAPAndCorrelatesWithoutCausalClaim() throws {

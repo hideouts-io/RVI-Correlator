@@ -1,4 +1,5 @@
 import CorrelatorCore
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -74,12 +75,25 @@ func stopProcess(_ process: Process) throws {
     }
 }
 
+/// sudo may ignore SIGINT sent from its parent's process group. SIGTERM is
+/// forwarded to the unprivileged logger. Output is unbuffered; final import
+/// must still verify that the last NDJSON record is complete before hashing.
+func stopIOSLog(_ process: Process) throws {
+    guard process.isRunning else { return }
+    process.terminate()
+    let deadline = Date().addingTimeInterval(15)
+    while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
+    guard !process.isRunning else {
+        throw CaptureFailure.process("iPhone log collector \(process.processIdentifier) did not exit after SIGTERM within 15 seconds. Session finalization is incomplete; inspect ios-log.stderr.")
+    }
+}
+
 func counters(_ url: URL) throws -> CaptureCounters {
     let text = try String(contentsOf: url, encoding: .utf8)
     return parseTcpdumpCounters(text)
 }
 
-func runCapture(device: String, directory: URL, appPID: Int32) throws {
+func runCapture(device: String, directory: URL, appPID: Int32, iosConfig: IOSLogConfiguration?) throws {
     guard geteuid() == 0 else { throw CaptureFailure.setup("Live capture helper must be launched through macOS administrator authorization.") }
     guard !device.isEmpty, device.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }) else {
         throw CaptureFailure.setup("Invalid device identifier supplied to capture helper.")
@@ -99,6 +113,8 @@ func runCapture(device: String, directory: URL, appPID: Int32) throws {
     var phoneStartedAt: Date?
     var macStartedAt: Date?
     var logStartedAt: Date?
+    var iosLogStartedAt: Date?
+    try iosConfig?.validate()
     func status(_ phase: String, _ interface: String?, _ processes: [Process], _ error: String?) throws {
         let phone = try counters(directory.appendingPathComponent("iphone-tcpdump.stderr"))
         let mac = try counters(directory.appendingPathComponent("mac-tcpdump.stderr"))
@@ -106,7 +122,10 @@ func runCapture(device: String, directory: URL, appPID: Int32) throws {
                                           rviStreamStartedAt: phoneStartedAt, pktapStreamStartedAt: macStartedAt,
                                           logStreamStartedAt: logStartedAt,
                                           rviPID: processes.first?.processIdentifier, pktapPID: processes.dropFirst().first?.processIdentifier,
-                                          logPID: processes.dropFirst(2).first?.processIdentifier, error: error,
+                                          logPID: processes.dropFirst(2).first?.processIdentifier,
+                                          iosLogPID: processes.dropFirst(3).first?.processIdentifier, iosLogStreamStartedAt: iosLogStartedAt,
+                                          iosLogBytes: iosConfig == nil ? nil : try (FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("ios-log.ndjson").path)[.size] as? NSNumber)?.uint64Value,
+                                          error: error,
                                           rviPackets: phone.captured, rviDropped: phone.dropped,
                                           pktapPackets: mac.captured, pktapDropped: mac.dropped), to: directory)
     }
@@ -156,9 +175,24 @@ func runCapture(device: String, directory: URL, appPID: Int32) throws {
                                    output: directory.appendingPathComponent("unified-log.raw"), error: directory.appendingPathComponent("unified-log.stderr"))
         logStartedAt = Date()
         processes.append(log)
+        if let iosConfig {
+            let owner = try FileManager.default.attributesOfItem(atPath: directory.path)[.ownerAccountID] as? NSNumber
+            guard let owner, owner.uint32Value > 0, let account = getpwuid(owner.uint32Value) else {
+                throw CaptureFailure.setup("iPhone log collector requires a non-root session owner; it must not run with capture-helper privileges.")
+            }
+            let hash = SHA256.hash(data: try Data(contentsOf: URL(fileURLWithPath: iosConfig.executable))).map { String(format: "%02x", $0) }.joined()
+            guard hash == iosConfig.executableSHA256 else { throw CaptureFailure.setup("iPhone log collector executable changed after preflight. Re-select the collector and start a new session.") }
+            let iosLog = try startProcess("/usr/bin/sudo", ["-n", "-H", "-u", "#\(owner.uint32Value)", "--", "/usr/bin/env", "-i",
+                "HOME=\(String(cString: account.pointee.pw_dir))", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "TZ=UTC", "PYTHONUNBUFFERED=1",
+                iosConfig.executable, "syslog", "live", "--udid", device, "--no-mobdev2", "--usbmux", "/var/run/usbmuxd",
+                "--pid", String(iosConfig.processID), "--format", "json", "--no-debug", "--no-info"],
+                output: directory.appendingPathComponent("ios-log.ndjson"), error: directory.appendingPathComponent("ios-log.stderr"))
+            iosLogStartedAt = Date()
+            processes.append(iosLog)
+        }
         Thread.sleep(forTimeInterval: 1)
         guard processes.allSatisfy(\.isRunning) else {
-            throw CaptureFailure.process("At least one of RVI tcpdump, PKTAP tcpdump, or Unified Log stream exited during startup. Inspect the three stderr files in \(directory.path).")
+            throw CaptureFailure.process("A requested capture stream exited during startup. Inspect tcpdump, Unified Log, and optional ios-log.stderr in \(directory.path).")
         }
         try status("running", interface, processes, nil)
         var nextCounters = Date().addingTimeInterval(5)
@@ -173,6 +207,10 @@ func runCapture(device: String, directory: URL, appPID: Int32) throws {
             if let logSize, logSize.int64Value > 1_000_000_000 {
                 throw CaptureFailure.process("Unified Log raw stream exceeded 1 GB. Capture streams were interrupted to protect disk space; review the saved session.")
             }
+            if iosConfig != nil {
+                let size = try FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("ios-log.ndjson").path)[.size] as? NSNumber
+                if let size, size.int64Value > 60_000_000 { throw CaptureFailure.process("iPhone log reached the 60 MB live limit. Streams were stopped; preserve the session and start a shorter capture.") }
+            }
             guard processes.allSatisfy(\.isRunning) else {
                 throw CaptureFailure.process("A capture stream exited unexpectedly. Inspect the session stderr files in \(directory.path).")
             }
@@ -185,15 +223,19 @@ func runCapture(device: String, directory: URL, appPID: Int32) throws {
             Thread.sleep(forTimeInterval: 1)
         }
         try status("stopping", interface, processes, nil)
-        for process in processes { try stopProcess(process) }
+        for process in processes.prefix(3) { try stopProcess(process) }
+        if let iosLog = processes.dropFirst(3).first { try stopIOSLog(iosLog) }
         try writeCaptureContext(CaptureContext(start: bootStart, end: try sampleHostBoot()), to: contextURL)
         _ = try command(rvictl, ["-x", device])
         rviNeedsTeardown = false
         try status("stopped", interface, processes, nil)
     } catch {
         var message = error.localizedDescription
-        for process in processes {
-            do { try stopProcess(process) }
+        for (index, process) in processes.enumerated() {
+            do {
+                if index == 3 { try stopIOSLog(process) }
+                else { try stopProcess(process) }
+            }
             catch { message += " Cleanup of process \(process.processIdentifier) failed: \(error.localizedDescription)" }
         }
         do { try status("failed", interface, processes, message) }
@@ -203,13 +245,15 @@ func runCapture(device: String, directory: URL, appPID: Int32) throws {
 }
 
 let arguments = CommandLine.arguments
-guard arguments.count == 4, let appPID = Int32(arguments[3]), appPID > 1 else {
-    fputs("Usage: RVICaptureHelper <device-udid> <session-directory> <app-pid>\n", stderr)
+guard arguments.count == 5, let appPID = Int32(arguments[3]), appPID > 1 else {
+    fputs("Usage: RVICaptureHelper <device-udid> <session-directory> <app-pid> <base64-optional-ios-log-configuration>\n", stderr)
     exit(64)
 }
 let directory = URL(fileURLWithPath: arguments[2], isDirectory: true)
 do {
-    try runCapture(device: arguments[1], directory: directory, appPID: appPID)
+    guard let data = Data(base64Encoded: arguments[4]) else { throw CaptureFailure.setup("Invalid encoded iPhone log configuration supplied to the helper.") }
+    let iosConfig = try JSONDecoder().decode(IOSLogConfiguration?.self, from: data)
+    try runCapture(device: arguments[1], directory: directory, appPID: appPID, iosConfig: iosConfig)
 } catch {
     let errorURL = directory.appendingPathComponent("helper.error")
     try? error.localizedDescription.write(to: errorURL, atomically: true, encoding: .utf8)

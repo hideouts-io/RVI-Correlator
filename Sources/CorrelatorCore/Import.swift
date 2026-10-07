@@ -60,7 +60,7 @@ public func parseEpochMicroseconds(_ text: String) throws -> Int64 {
     return timestamp
 }
 
-private func fingerprint(_ url: URL) throws -> (String, UInt64) {
+func fingerprint(_ url: URL) throws -> (String, UInt64) {
     let handle = try FileHandle(forReadingFrom: url)
     defer { try? handle.close() }
     var hash = SHA256()
@@ -151,7 +151,7 @@ func runPacketDecoder(_ url: URL, arguments: [String]) throws -> (Data, String) 
 }
 
 public func importCapture(_ url: URL, source: EvidenceSource, offsetMicroseconds: Int64) throws -> ImportedEvidence {
-    guard source != .log else { throw AnalysisError.invalidInput("A Unified Log export must be imported as log evidence.") }
+    guard source == .iphone || source == .mac else { throw AnalysisError.invalidInput("A log export must be imported as log evidence.") }
     guard FileManager.default.fileExists(atPath: url.path) else { throw AnalysisError.invalidInput("Capture does not exist: \(url.path)") }
     let (hashBefore, byteCount) = try fingerprint(url)
     let (packets, diagnostics) = try decodeCapture(url)
@@ -184,7 +184,7 @@ public func importCapture(_ url: URL, source: EvidenceSource, offsetMicroseconds
 }
 
 public func importLiveCapture(_ url: URL, source: EvidenceSource, sessionID: String, afterRecord: Int) throws -> ImportedEvidence {
-    guard source != .log else { throw AnalysisError.invalidInput("A packet capture cannot use the Unified Log source.") }
+    guard source == .iphone || source == .mac else { throw AnalysisError.invalidInput("A packet capture cannot use a log source.") }
     guard FileManager.default.fileExists(atPath: url.path) else { throw AnalysisError.invalidInput("Live capture does not exist: \(url.path)") }
     let (packets, diagnostics) = try decodeGrowingCapture(url, afterRecord: afterRecord)
     let dnsRecords = try decodeDNSRecords(url, records: packets.compactMap { Int($0.source.layers["frame.number"]?.strings.first ?? "") }, hasDNS: packets.contains { $0.source.layers["dns.flags.response"]?.strings.contains(where: { $0 == "1" || $0 == "True" }) == true })

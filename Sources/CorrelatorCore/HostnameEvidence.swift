@@ -84,7 +84,7 @@ public func resolveHostnames(_ observations: [Observation]) throws -> [String: [
     }
     let handshakes = Dictionary(grouping: observations.filter { !$0.sni.isEmpty || !$0.values("http.host").isEmpty }, by: \.streamIdentity)
     var result: [String: [HostnameEvidence]] = [:]
-    for packet in observations where packet.source != .log {
+    for packet in observations where packet.source == .iphone || packet.source == .mac {
         var evidence = packet.dnsNames.map { name in
             HostnameEvidence(name: name, origin: .query, observationIDs: [packet.id], inferred: false,
                 detail: "Observed DNS question name. A question alone does not associate an address with a later connection.")

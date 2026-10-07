@@ -153,12 +153,15 @@ public func correlate(_ imports: [ImportedEvidence], settings: CorrelationSettin
     let best = Dictionary(grouping: results, by: { result in
         result.iphoneID + "|" + (macByID[result.macID]?.streamIdentity ?? result.macID)
     }).compactMap { $0.value.max(by: { $0.score < $1.score }) }
-    return Investigation(schemaVersion: 3, generatedAt: Date(), isDemonstration: isDemonstration, settings: settings,
-                         artifacts: imports.map(\.artifact), observations: observations,
-                         correlations: best.sorted {
+    let ranked = best.sorted {
                              if $0.score != $1.score { return $0.score > $1.score }
                              if $0.deltaMilliseconds != $1.deltaMilliseconds { return $0.deltaMilliseconds < $1.deltaMilliseconds }
                              return $0.id < $1.id
-                         },
-                         interpretation: interpretationNotice, diagnostics: diagnostics, peerReview: try reviewPeerEvidence(observations, settings: settings), hostnameEvidence: hosts)
+                         }
+    let peerReview = try reviewPeerEvidence(observations, settings: settings)
+    return Investigation(schemaVersion: 4, generatedAt: Date(), isDemonstration: isDemonstration, settings: settings,
+                         artifacts: imports.map(\.artifact), observations: observations,
+                         sessions: packetSessions(observations, hostnameEvidence: hosts, correlations: ranked, peerReview: peerReview),
+                         correlations: ranked,
+                         interpretation: interpretationNotice, diagnostics: diagnostics, peerReview: peerReview, hostnameEvidence: hosts)
 }

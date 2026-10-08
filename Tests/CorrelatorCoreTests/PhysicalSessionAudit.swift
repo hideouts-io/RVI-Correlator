@@ -14,7 +14,7 @@ func physicalSessionAudit() throws {
         let normalizedURL = URL(fileURLWithPath: normalizedPath)
         let packetIDs = Set(mac.observations.compactMap { $0.pid.flatMap(Int.init) })
         let tokens = Set((phone.observations + mac.observations).flatMap { ($0.destinationIP.map { [$0] } ?? []) + $0.hostnames })
-        try normalizeLiveLog(directory.appendingPathComponent("unified-log.raw"), destination: normalizedURL, processIDs: packetIDs, tokens: tokens)
+        try normalizeFinalLog(directory.appendingPathComponent("unified-log.raw"), destination: normalizedURL, processIDs: packetIDs, tokens: tokens)
         let derived = try importUnifiedLog(normalizedURL, offsetMicroseconds: 0)
         print("New normalization retained \(derived.observations.count) events in a separate validation artifact; original normalized evidence remains unchanged")
     }

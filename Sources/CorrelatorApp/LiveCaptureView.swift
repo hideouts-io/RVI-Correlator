@@ -76,10 +76,11 @@ extension ContentView {
                 }
                 if let session = liveSession {
                     HStack(spacing: 10) {
-                        Text("Session: \(session.directory.path)").font(.caption.monospaced()).textSelection(.enabled)
+                        let evidenceDirectory = liveFinalized ? session.directory : session.captureDirectory
+                        Text("Session: \(evidenceDirectory.path)").font(.caption.monospaced()).textSelection(.enabled)
                         Button("Reveal in Finder") {
-                            if !NSWorkspace.shared.open(session.directory) {
-                                error = "Finder could not open \(session.directory.path)."
+                            if !NSWorkspace.shared.open(evidenceDirectory) {
+                                error = "Finder could not open \(evidenceDirectory.path)."
                             }
                         }
                             .buttonStyle(.bordered).accessibilityIdentifier("capture.revealSession")
@@ -248,15 +249,10 @@ extension ContentView {
             let oldMac = existing[.mac]?.observations ?? []
             let result = try await Task.detached(priority: .userInitiated) { () throws -> ([ImportedEvidence], Investigation?) in
                 let updates = try LiveCaptureService.liveEvidence(session, existingPhone: oldPhone, existingMac: oldMac)
-                let items = updates.map { update -> ImportedEvidence in
+                let items = try updates.map { update -> ImportedEvidence in
                     guard update.artifact.source == .iphone || update.artifact.source == .mac,
                           let previous = existing[update.artifact.source] else { return update }
-                    let observations = previous.observations + update.observations
-                    let old = update.artifact
-                    let artifact = Artifact(id: old.id, source: old.source, path: old.path, sha256: old.sha256,
-                                            bytes: old.bytes, records: observations.count, decoder: old.decoder,
-                                            offsetMicroseconds: old.offsetMicroseconds, warnings: old.warnings)
-                    return ImportedEvidence(artifact: artifact, observations: observations)
+                    return try mergeLiveCapture(previous, update: update)
                 }
                 guard items.contains(where: { $0.artifact.source == .iphone }),
                       items.contains(where: { $0.artifact.source == .mac }) else { return (items, nil) }

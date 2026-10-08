@@ -35,11 +35,6 @@ public struct Observation: Identifiable, Codable, Sendable, Hashable {
 
     public func values(_ key: String) -> [String] { fields[key] ?? [] }
     public func first(_ key: String) -> String? { fields[key]?.first }
-    public var sourceIP: String? { first("ip.src") ?? first("ipv6.src") }
-    public var destinationIP: String? { first("ip.dst") ?? first("ipv6.dst") }
-    public var sourcePort: String? { first("tcp.srcport") ?? first("udp.srcport") }
-    public var destinationPort: String? { first("tcp.dstport") ?? first("udp.dstport") }
-    public var transport: String? { first("tcp.srcport") != nil ? "TCP" : first("udp.srcport") != nil ? "UDP" : nil }
     public var process: String? { first("pktap.cmdname") ?? first("frame.darwin.process_info.pname") ?? first("log.process") }
     public var pid: String? { validPID(first("pktap.pid") ?? first("frame.darwin.process_info.pid") ?? first("log.pid")) }
     public var effectivePID: String? { validPID(first("pktap.epid") ?? first("frame.darwin.process_info.epid")) }
@@ -96,7 +91,7 @@ public struct Observation: Identifiable, Codable, Sendable, Hashable {
         return protocols.last?.uppercased() ?? "Packet"
     }
     public var streamIdentity: String {
-        let stream = first("tcp.stream") ?? first("udp.stream")
+        let stream = hasAmbiguousPacketLayers ? nil : first("tcp.stream") ?? first("udp.stream")
         return [artifactID, transport ?? "other", stream ?? "frame-\(record)", processIdentity, interface ?? "no-interface"].joined(separator: ":")
     }
 }

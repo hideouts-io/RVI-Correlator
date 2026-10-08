@@ -242,7 +242,7 @@ Flow inheritance uses prior evidence within five minutes on the same stream, int
 
 ### Shared-service candidates
 
-Candidate selection requires a matching remote IP, remote port, transport, and configured time window. Direction determines the remote endpoint. Mac `rvi` frames are excluded because they may mirror iPhone traffic.
+Candidate selection requires a matching remote IP, remote port, transport, and configured time window. Derived endpoints require one coherent IP header and one unambiguous TCP/UDP header. Mixed or repeated layers, including identical repeated values, remain available in raw fields but cannot participate in endpoint scoring or session grouping. Direction determines the remote endpoint. Mac `rvi` frames are excluded because they may mirror iPhone traffic.
 
 The score can incorporate endpoint matches, source-scoped DNS support, flow hostnames/SNI, ALPN, QUIC version, PKTAP labels, and qualifying logs. Time contributes points only with documented alignment and uncertainty compatible with the matching window.
 
@@ -261,6 +261,8 @@ These are header fingerprints, not payload hashes. Forwarding, mirroring, retran
 Live collection combines targeted networking/service coverage with host-observed executable names `CoreDeviceService`, `remoted`, `usbmuxd`, and `AMPDeviceDiscoveryAgent`. It does not indiscriminately collect every subsystem or enable private/debug logging.
 
 Normalization retains these device-service events as **context**. Other retained records require a captured Mac PID and a bounded endpoint/hostname token. Retention is not automatically a supporting link. Relationship log support has separate PID, process-name, endpoint, time, and alignment requirements. Original raw records and line references remain available; derived `rviCaptureSelection` annotations are not OS fields.
+
+Imported log identities use physical LF-delimited export lines; supplied source-line annotations are separate, unauthenticated provenance. Fresh normalization generates its own annotations and preserves stable source-line IDs across live refreshes. Normalization streams records with a 1 MB line limit and 64 MB selected-output limit, and preserves the previous normalized artifact on failure. Live snapshots explicitly warn about deferred non-LF-terminated tails. Final normalization consumes a valid terminal record or fails on malformed/truncated input; event timestamps are validated before selection. Only the supported typed `count`/`finished` counter summary is omitted as a summary.
 
 Activity navigation requires original, nonempty boot identity and compatible process/image scope with nonzero activity identifiers. A separate `capture-context.json` records host boot samples, uptime, collection predicate and level. It is never silently substituted into an original log record. Agreeing host samples do not establish per-event identity, process lifetime, causation, or clock alignment.
 
@@ -310,7 +312,7 @@ Do not calibrate from similar traffic, collector launch timing, user-action timi
 
 ## Evidence Files and Privacy
 
-Sessions are stored in `~/Documents/RVI-Correlator/Sessions/<session-id>/`.
+During live capture, root writes only to `/Library/Application Support/RVI-Correlator/Captures/<uid>/<session-id>/`, behind root-owned ancestors and a read/search ACL for the requesting user. The helper rejects symlinks, writable ancestors and ACL mutation grants, and creates stream files exclusively through directory descriptors. The app writes stop requests and normalized logs as the user in `~/Documents/RVI-Correlator/Sessions/<session-id>/`. After a clean stop, it copies and verifies the captured files into that Documents folder before finalizing the manifest. Protected originals remain preserved; a failed copy can be retried. Finder opens the protected evidence while capture is live, and the Documents copy after finalization. This privilege-boundary change has local filesystem tests; fresh administrator-authorized capture remains unverified.
 
 | Artifact | Purpose |
 |---|---|
@@ -374,7 +376,7 @@ All raw log records in the successful run had empty boot UUIDs. The sidecar rema
 | Manifest mismatch | Preserve the original folder. Investigate the named file and expected/actual hash or size; do not regenerate a manifest merely to bypass the check. |
 | Generic Dock icon | Open the packaged `.app`, not the raw executable. Quit and reopen after rebuilding; confirm you are launching the intended copy. |
 
-Import is bounded to 50,000-frame decoder batches, 256 MB JSON and a 120-second deadline per decoder pass. Normalized log input is bounded to 64 MB and scoring to 20,000 candidate pairs. Exceeding a bound is an explicit error, not silent evidence truncation.
+Import uses 50,000-frame decoder batches. Each decoder pass drains bounded pipes with 256 MB stdout, 1 MB stderr and a 120-second monotonic deadline; termination escalates to SIGKILL after a bounded grace period. Each packet artifact is limited to 500,000 records and 256 MB of cumulative JSON or estimated retained field storage, including field/value overhead. Live and final merges enforce the same per-artifact budget; two packet sources can each consume that budget. Structured DNS answers are bounded before retention. These allocation budgets do not measure Swift or TShark resident memory. Normalized log input is bounded to 64 MB and scoring to 20,000 candidate pairs. Exceeding a bound is an explicit error, not silent evidence truncation.
 
 ## Testing
 

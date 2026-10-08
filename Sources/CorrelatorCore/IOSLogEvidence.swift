@@ -108,7 +108,7 @@ private func decodeIOSLog(_ data: Data, url: URL, config: IOSLogConfiguration, s
 private func iosLogSnapshot(_ url: URL) throws -> Data {
     let size = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber
     guard let size, size.int64Value <= 64_000_000 else { throw AnalysisError.resourceLimit("iPhone log exceeds the 64 MB import limit: \(url.path)") }
-    let data = try Data(contentsOf: url)
+    let data = try readBoundedFile(url, maximumBytes: 64_000_000)
     guard data.count <= 64_000_000 else { throw AnalysisError.resourceLimit("iPhone log grew beyond the 64 MB import limit: \(url.path)") }
     return data
 }

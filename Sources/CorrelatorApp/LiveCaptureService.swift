@@ -6,6 +6,7 @@ struct LiveSession: Sendable {
     let id: String
     let directory: URL
     let deviceName: String
+    let captureDirectory: URL
 }
 
 private struct CapturedFile: Codable {
@@ -105,12 +106,20 @@ enum LiveCaptureService {
             try iosLogConfiguration.validate()
             try JSONEncoder().encode(iosLogConfiguration).write(to: directory.appendingPathComponent("ios-log-config.json"), options: .atomic)
         }
-        // Pass the same configuration to the privileged helper without asking it to
-        // read a user-created file in a privacy-protected Documents directory.
-        let encodedConfiguration = try JSONEncoder().encode(iosLogConfiguration).base64EncodedString()
-        let command = [helper.path, device.id, directory.path, String(ProcessInfo.processInfo.processIdentifier), encodedConfiguration].map(shellQuoted).joined(separator: " ") +
-            " < /dev/null > " + shellQuoted(directory.appendingPathComponent("helper.stdout").path) +
-            " 2> " + shellQuoted(directory.appendingPathComponent("helper.stderr").path) + " &"
+        let requester = try captureRequester(ProcessInfo.processInfo.processIdentifier)
+        let captureDirectory = try protectedCaptureURL(sessionID: id, requesterUID: requester.uid)
+        let worker = helper.deletingLastPathComponent().appendingPathComponent("RVICaptureWorker")
+        guard FileManager.default.isExecutableFile(atPath: worker.path) else {
+            throw AnalysisError.invalidInput("RVICaptureWorker is missing. Rebuild the packaged app before capture.")
+        }
+        let workerIdentity = try capturedFile(worker, name: "RVICaptureWorker")
+        guard workerIdentity.bytes <= 64_000_000 else { throw AnalysisError.resourceLimit("Capture worker exceeds 64 MB. Rebuild the app.") }
+        let configuration = CaptureLaunchConfiguration(workerSHA256: workerIdentity.sha256, iosLog: iosLogConfiguration)
+        let encodedConfiguration = try JSONEncoder().encode(configuration).base64EncodedString()
+        let encodedRequester = try JSONEncoder().encode(requester).base64EncodedString()
+        // Bootstrap runs synchronously so setup errors reach osascript. It launches
+        // the worker with protected descriptors, never shell output redirections.
+        let command = [helper.path, device.id, id, directory.path, encodedRequester, encodedConfiguration].map(shellQuoted).joined(separator: " ")
         let script = "do shell script \"\(appleScriptEscaped(command))\" with administrator privileges"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -123,7 +132,19 @@ enum LiveCaptureService {
         guard process.terminationStatus == 0 else {
             throw AnalysisError.invalidInput("macOS administrator authorization did not launch live capture (exit \(process.terminationStatus)): \(diagnostic.prefix(1_000)). Session directory: \(directory.path)")
         }
-        return LiveSession(id: id, directory: directory, deviceName: device.name)
+        let session = LiveSession(id: id, directory: directory, deviceName: device.name, captureDirectory: captureDirectory)
+        let deadline = Date().addingTimeInterval(45)
+        while Date() < deadline {
+            if let health = try status(session) {
+                guard health.phase == "running" else {
+                    throw AnalysisError.invalidInput("Capture helper did not enter running state: \(health.error ?? health.phase). Inspect \(captureDirectory.path).")
+                }
+                return session
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        try stop(session)
+        throw AnalysisError.invalidInput("Capture helper did not report readiness within 45 seconds. A stop was requested. Verify protected capture directory ownership, ACLs and helper diagnostics at \(captureDirectory.path), then retry.")
     }
 
     static func stop(_ session: LiveSession) throws {
@@ -131,10 +152,10 @@ enum LiveCaptureService {
     }
 
     static func status(_ session: LiveSession) throws -> LiveCaptureStatus? {
-        let url = session.directory.appendingPathComponent("status.json")
-        let errorURL = session.directory.appendingPathComponent("helper.error")
+        let url = session.captureDirectory.appendingPathComponent("status.json")
+        let errorURL = session.captureDirectory.appendingPathComponent("helper.error")
         if FileManager.default.fileExists(atPath: errorURL.path) {
-            throw AnalysisError.invalidInput("Capture helper failed: \(try String(contentsOf: errorURL, encoding: .utf8)). Diagnostics: \(session.directory.path)")
+            throw AnalysisError.invalidInput("Capture helper failed: \(try String(contentsOf: errorURL, encoding: .utf8)). Diagnostics: \(session.captureDirectory.path)")
         }
         if !FileManager.default.fileExists(atPath: url.path) {
             return nil
@@ -143,26 +164,26 @@ enum LiveCaptureService {
         decoder.dateDecodingStrategy = .iso8601
         let status = try decoder.decode(LiveCaptureStatus.self, from: Data(contentsOf: url))
         if status.phase == "running" && Date().timeIntervalSince(status.updatedAt) > 12 {
-            throw AnalysisError.invalidInput("Capture helper health has not updated for over 12 seconds. Inspect \(session.directory.path)/helper.stderr and stop the session if necessary.")
+            throw AnalysisError.invalidInput("Capture helper health has not updated for over 12 seconds. Inspect \(session.captureDirectory.path)/helper.stderr and stop the session if necessary.")
         }
         return status
     }
 
     static func liveEvidence(_ session: LiveSession, existingPhone: [Observation], existingMac: [Observation]) throws -> [ImportedEvidence] {
-        let phone = session.directory.appendingPathComponent("iphone-rvi.pcapng")
-        let mac = session.directory.appendingPathComponent("mac-pktap.pcapng")
+        let phone = session.captureDirectory.appendingPathComponent("iphone-rvi.pcapng")
+        let mac = session.captureDirectory.appendingPathComponent("mac-pktap.pcapng")
         let phoneItem = try hasPackets(phone) ? importLiveCapture(phone, source: .iphone, sessionID: session.id,
                                                                    afterRecord: existingPhone.last?.record ?? 0) : nil
         let macItem = try hasPackets(mac) ? importLiveCapture(mac, source: .mac, sessionID: session.id,
                                                                afterRecord: existingMac.last?.record ?? 0) : nil
-        let raw = session.directory.appendingPathComponent("unified-log.raw")
+        let raw = session.captureDirectory.appendingPathComponent("unified-log.raw")
         let normalized = session.directory.appendingPathComponent("unified-log.ndjson")
-        let phonePackets = existingPhone + (phoneItem?.observations ?? [])
-        let macPackets = existingMac + (macItem?.observations ?? [])
-        try normalizeLiveLog(raw, destination: normalized, processIDs: processIDs(macPackets), tokens: logTokens(phonePackets + macPackets))
-        let logItem = stableLog(try importUnifiedLog(normalized, offsetMicroseconds: 0), sessionID: session.id)
-        let iosItem = try FileManager.default.fileExists(atPath: session.directory.appendingPathComponent("ios-log-config.json").path)
-            ? importLiveIOSLog(session.directory, sessionID: session.id, phoneArtifactID: "\(session.id)-iPhone RVI") : nil
+        let phonePackets = try appendPacketObservations(existingPhone, incoming: phoneItem?.observations ?? [])
+        let macPackets = try appendPacketObservations(existingMac, incoming: macItem?.observations ?? [])
+        let normalization = try normalizeLiveLog(raw, destination: normalized, processIDs: processIDs(macPackets), tokens: logTokens(phonePackets + macPackets))
+        let logItem = try stabilizeNormalizedLog(withLogNormalizationWarnings(try importUnifiedLog(normalized, offsetMicroseconds: 0), summary: normalization), sessionID: session.id)
+        let iosItem = try FileManager.default.fileExists(atPath: session.captureDirectory.appendingPathComponent("ios-log-config.json").path)
+            ? importLiveIOSLog(session.captureDirectory, sessionID: session.id, phoneArtifactID: "\(session.id)-iPhone RVI") : nil
         return [phoneItem, macItem, logItem, iosItem].compactMap { $0 }
     }
 
@@ -171,10 +192,14 @@ enum LiveCaptureService {
         guard status?.phase == "stopped" else {
             throw AnalysisError.invalidInput("Session \(session.directory.path) has not stopped cleanly. Final evidence hashing requires a stopped capture.")
         }
-        let teardownError = session.directory.appendingPathComponent("teardown.error")
+        let teardownError = session.captureDirectory.appendingPathComponent("teardown.error")
         if FileManager.default.fileExists(atPath: teardownError.path) {
             throw AnalysisError.invalidInput("RVI teardown failed: \(try String(contentsOf: teardownError, encoding: .utf8)). Review the session before finalizing.")
         }
+        let names = ["iphone-rvi.pcapng", "mac-pktap.pcapng", "unified-log.raw", "iphone-tcpdump.stderr",
+                     "mac-tcpdump.stderr", "unified-log.stderr", "status.json", "capture-context.json", "helper.stdout", "helper.stderr"] +
+                    (status?.iosLogPID == nil ? [] : ["ios-log-config.json", "ios-log.ndjson", "ios-log.stderr"])
+        try publishCaptureFiles(source: session.captureDirectory, destination: session.directory, names: names)
         let phone = session.directory.appendingPathComponent("iphone-rvi.pcapng")
         let mac = session.directory.appendingPathComponent("mac-pktap.pcapng")
         guard hasPackets(phone), hasPackets(mac) else {
@@ -184,8 +209,8 @@ enum LiveCaptureService {
         let macItem = try finalizeLiveCapture(mac, source: .mac, sessionID: session.id, existing: existingMac)
         let raw = session.directory.appendingPathComponent("unified-log.raw")
         let normalized = session.directory.appendingPathComponent("unified-log.ndjson")
-        try normalizeLiveLog(raw, destination: normalized, processIDs: processIDs(macItem.observations), tokens: logTokens(phoneItem.observations + macItem.observations))
-        let logItem = stableLog(try importUnifiedLog(normalized, offsetMicroseconds: 0), sessionID: session.id)
+        try normalizeFinalLog(raw, destination: normalized, processIDs: processIDs(macItem.observations), tokens: logTokens(phoneItem.observations + macItem.observations))
+        let logItem = try stabilizeNormalizedLog(try importUnifiedLog(normalized, offsetMicroseconds: 0), sessionID: session.id)
         let iosItem = try FileManager.default.fileExists(atPath: session.directory.appendingPathComponent("ios-log-config.json").path)
             ? importIOSLog(session.directory, sessionID: session.id, phoneArtifactID: phoneItem.artifact.id) : nil
         try writeManifest(session, status: status, observations: phoneItem.observations)
@@ -295,20 +320,6 @@ enum LiveCaptureService {
 
     private static func processIDs(_ observations: [Observation]) -> Set<Int> {
         Set(observations.compactMap { $0.pid.flatMap(Int.init) })
-    }
-
-    private static func stableLog(_ item: ImportedEvidence, sessionID: String) -> ImportedEvidence {
-        let id = "\(sessionID)-Unified Log"
-        let old = item.artifact
-        let artifact = Artifact(id: id, source: .log, path: old.path, sha256: old.sha256, bytes: old.bytes,
-                                records: old.records, decoder: old.decoder, offsetMicroseconds: old.offsetMicroseconds,
-                                warnings: old.warnings)
-        let observations = item.observations.map { old in
-            Observation(id: "\(id):\(old.record)", source: .log, artifactID: id, record: old.record,
-                        originalMicroseconds: old.originalMicroseconds, timeMicroseconds: old.timeMicroseconds,
-                        protocols: old.protocols, fields: old.fields, dnsRecords: old.dnsRecords)
-        }
-        return ImportedEvidence(artifact: artifact, observations: observations)
     }
 
     private static func logTokens(_ observations: [Observation]) -> Set<String> {

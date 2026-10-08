@@ -30,7 +30,7 @@ private struct TSharkPacket: Decodable {
     struct Source: Decodable { let layers: [String: FieldValue] }
 }
 
-private struct LogRecord: Decodable {
+struct LogRecord: Codable {
     let timestamp: String
     let eventMessage: String
     let processImagePath: String?
@@ -44,6 +44,13 @@ private struct LogRecord: Decodable {
     let activityIdentifier: UInt64?
     let parentActivityIdentifier: UInt64?
     let traceID: UInt64?
+    func annotated(line: Int, selection: String) -> LogRecord {
+        LogRecord(timestamp: timestamp, eventMessage: eventMessage, processImagePath: processImagePath,
+            processID: processID, subsystem: subsystem, category: category, rviCaptureLine: line,
+            rviCaptureSelection: selection, bootUUID: bootUUID, processImageUUID: processImageUUID,
+            activityIdentifier: activityIdentifier, parentActivityIdentifier: parentActivityIdentifier, traceID: traceID)
+    }
+
 }
 
 public func parseEpochMicroseconds(_ text: String) throws -> Int64 {
@@ -91,17 +98,31 @@ private func decodeGrowingCapture(_ url: URL, afterRecord: Int) throws -> ([TSha
     var packets: [TSharkPacket] = []
     var diagnostics: [String] = []
     var cursor = afterRecord
+    var budget = PacketBudget(records: 0, bytes: 0)
+    var diagnosticBytes = 0
     while true {
-        let (batch, diagnostic) = try decodePackets(url, selection: ["-c", String(cursor + 50_000), "-Y", "frame.number > \(cursor)"])
+        let (end, overflow) = cursor.addingReportingOverflow(50_000)
+        guard !overflow else { throw AnalysisError.invalidInput("Frame cursor exceeds the supported range.") }
+        let (batch, diagnostic, decodedBytes) = try decodePackets(url, selection: ["-c", String(end), "-Y", "frame.number > \(cursor)"])
+        let limit = PacketBudget(records: maximumPacketRecords, bytes: maximumPacketBytes)
+        var retained = try addingPacketBudget(PacketBudget(records: 0, bytes: 0), records: batch.count, bytes: 384 * batch.count, limit: limit)
+        for packet in batch {
+            retained = try addingPacketFields(packet.source.layers.mapValues(\.strings), budget: retained, limit: limit)
+        }
+        budget = try addingPacketBudget(budget, records: batch.count, bytes: max(decodedBytes, retained.bytes), limit: limit)
+        guard diagnostic.utf8.count + 1 <= 1_000_000 - diagnosticBytes else {
+            throw AnalysisError.resourceLimit("Aggregate decoder diagnostics exceed 1 MB. Narrow this capture.")
+        }
+        diagnosticBytes += diagnostic.utf8.count + 1
         packets.append(contentsOf: batch)
         if !diagnostic.isEmpty { diagnostics.append(diagnostic) }
         if batch.count < 50_000 { break }
-        cursor += batch.count
+        cursor = end
     }
     return (packets, diagnostics.joined(separator: "\n"))
 }
 
-private func decodePackets(_ url: URL, selection: [String]) throws -> ([TSharkPacket], String) {
+private func decodePackets(_ url: URL, selection: [String]) throws -> ([TSharkPacket], String, Int) {
     let (data, errorText) = try runPacketDecoder(url, arguments: selection + ["-T", "json", "--no-duplicate-keys"] + packetFields.flatMap { ["-e", $0] })
     let packets: [TSharkPacket]
     do { packets = try JSONDecoder().decode([TSharkPacket].self, from: data) }
@@ -109,45 +130,13 @@ private func decodePackets(_ url: URL, selection: [String]) throws -> ([TSharkPa
     guard packets.count < 100_001 else {
         throw AnalysisError.resourceLimit("Decoder returned more than 100,000 frames in one pass from \(url.path). Shorten the refresh interval or narrow the capture.")
     }
-    return (packets, errorText)
+    return (packets, errorText, data.count)
 }
 
 func runPacketDecoder(_ url: URL, arguments: [String]) throws -> (Data, String) {
-    let executable = try tsharkExecutable()
-    let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("rvi-correlator-\(UUID().uuidString)")
-    try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: false)
-    defer { try? FileManager.default.removeItem(at: scratch) }
-    let outputURL = scratch.appendingPathComponent("packets.json")
-    let errorURL = scratch.appendingPathComponent("decoder.stderr")
-    FileManager.default.createFile(atPath: outputURL.path, contents: nil)
-    FileManager.default.createFile(atPath: errorURL.path, contents: nil)
-    let output = try FileHandle(forWritingTo: outputURL)
-    let errors = try FileHandle(forWritingTo: errorURL)
-    defer { try? output.close(); try? errors.close() }
-    let process = Process()
-    process.executableURL = executable
-    process.arguments = ["-n", "-2", "-r", url.path] + arguments
-    process.standardOutput = output
-    process.standardError = errors
-    try process.run()
-    let deadline = Date().addingTimeInterval(120)
-    while process.isRunning {
-        if Date() > deadline {
-            process.terminate()
-            process.waitUntilExit()
-            throw AnalysisError.resourceLimit("TShark exceeded 120 seconds while decoding \(url.path). Narrow the capture and retry.")
-        }
-        Thread.sleep(forTimeInterval: 0.05)
-    }
-    let errorText = (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
-    guard process.terminationStatus == 0 else {
-        throw AnalysisError.decoderFailed("TShark failed for \(url.path) with exit status \(process.terminationStatus): \(errorText.prefix(4_000))")
-    }
-    let bytes = try FileManager.default.attributesOfItem(atPath: outputURL.path)[.size] as? NSNumber
-    guard let bytes, bytes.intValue <= 256_000_000 else {
-        throw AnalysisError.resourceLimit("Decoded packet data exceeds 256 MB for \(url.path). Narrow the capture and retry.")
-    }
-    return (try Data(contentsOf: outputURL), errorText)
+    let (data, diagnostic) = try runBoundedProcess(tsharkExecutable(), arguments: ["-n", "-2", "-r", url.path] + arguments,
+        limits: ProcessOutputLimits(stdoutBytes: maximumPacketBytes, stderrBytes: 1_000_000, seconds: 120))
+    return (data, String(decoding: diagnostic, as: UTF8.self))
 }
 
 public func importCapture(_ url: URL, source: EvidenceSource, offsetMicroseconds: Int64) throws -> ImportedEvidence {
@@ -175,12 +164,12 @@ public func importCapture(_ url: URL, source: EvidenceSource, offsetMicroseconds
     if source == .mac && !observations.isEmpty && !observations.contains(where: { $0.hasProcessCaptureMetadata }) {
         throw AnalysisError.invalidInput("Mac capture \(url.path) has neither decoded PKTAP headers nor Apple PCAPNG process metadata. Capture from pktap and import that PCAPNG file.")
     }
-    var warnings: [String] = [try captureTimestampDescription(url)]
+    var warnings: [String] = [try captureTimestampDescription(url)] + packetLayerWarnings(observations)
     if diagnostics.contains("Malformed") { warnings.append("TShark reported malformed packet data. Inspect decoder diagnostics before relying on affected frames.") }
     if source == .mac && observations.contains(where: { $0.pid == nil }) { warnings.append("Some PKTAP frames have no process ID; process attribution is incomplete.") }
     let artifact = Artifact(id: artifactID, source: source, path: url.path, sha256: hashBefore, bytes: byteCount,
                             records: observations.count, decoder: "TShark", offsetMicroseconds: offsetMicroseconds, warnings: warnings)
-    return ImportedEvidence(artifact: artifact, observations: observations)
+    return ImportedEvidence(artifact: artifact, observations: try appendPacketObservations([], incoming: observations))
 }
 
 public func importLiveCapture(_ url: URL, source: EvidenceSource, sessionID: String, afterRecord: Int) throws -> ImportedEvidence {
@@ -206,9 +195,23 @@ public func importLiveCapture(_ url: URL, source: EvidenceSource, sessionID: Str
     let bytes = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber
     guard let bytes else { throw AnalysisError.invalidInput("Cannot read live capture size: \(url.path)") }
     let warnings = ["Live file is changing. SHA-256 and packet counts are final only after Stop."] +
-        (diagnostics.contains("Malformed") ? ["TShark reported malformed packet data in the live snapshot."] : [])
+        (diagnostics.contains("Malformed") ? ["TShark reported malformed packet data in the live snapshot."] : []) + packetLayerWarnings(observations)
     let artifact = Artifact(id: artifactID, source: source, path: url.path, sha256: "IN PROGRESS", bytes: bytes.uint64Value,
                             records: observations.count, decoder: "TShark live snapshot", offsetMicroseconds: 0, warnings: warnings)
+    return ImportedEvidence(artifact: artifact, observations: try appendPacketObservations([], incoming: observations))
+}
+
+/// Merge a refresh into the same capture, retaining ambiguity diagnostics across clean tails.
+public func mergeLiveCapture(_ previous: ImportedEvidence, update: ImportedEvidence) throws -> ImportedEvidence {
+    let old = update.artifact
+    guard old.source == .iphone || old.source == .mac,
+          previous.artifact.id == old.id, previous.artifact.source == old.source else {
+        throw AnalysisError.invalidInput("Live packet refresh must belong to the same source and session artifact.")
+    }
+    let observations = try appendPacketObservations(previous.observations, incoming: update.observations)
+    let warnings = old.warnings + packetLayerWarnings(observations).filter { !old.warnings.contains($0) }
+    let artifact = Artifact(id: old.id, source: old.source, path: old.path, sha256: old.sha256, bytes: old.bytes,
+        records: observations.count, decoder: old.decoder, offsetMicroseconds: old.offsetMicroseconds, warnings: warnings)
     return ImportedEvidence(artifact: artifact, observations: observations)
 }
 
@@ -219,104 +222,40 @@ public func finalizeLiveCapture(_ url: URL, source: EvidenceSource, sessionID: S
     let remaining = try importLiveCapture(url, source: source, sessionID: sessionID, afterRecord: lastRecord)
     let (hashAfter, _) = try fingerprint(url)
     guard hashBefore == hashAfter else { throw AnalysisError.evidenceChanged("Capture changed during final decoding: \(url.path). Stop the collector before finalizing.") }
-    let observations = existing + remaining.observations
+    let observations = try appendPacketObservations(existing, incoming: remaining.observations)
     let artifact = Artifact(id: "\(sessionID)-\(source.rawValue)", source: source, path: url.path,
                             sha256: hashAfter, bytes: byteCount, records: observations.count, decoder: "TShark incremental",
-                            offsetMicroseconds: 0, warnings: remaining.artifact.warnings.filter { !$0.contains("Live file is changing") } + [try captureTimestampDescription(url)])
+                            offsetMicroseconds: 0, warnings: remaining.artifact.warnings.filter { !$0.contains("Live file is changing") } + [try captureTimestampDescription(url)] + packetLayerWarnings(observations).filter { !remaining.artifact.warnings.contains($0) })
     return ImportedEvidence(artifact: artifact, observations: observations)
-}
-
-public func normalizeLiveLog(_ raw: URL, destination: URL, processIDs: Set<Int>, tokens: Set<String>) throws {
-    guard FileManager.default.fileExists(atPath: raw.path) else { throw AnalysisError.invalidInput("Live Unified Log stream does not exist: \(raw.path)") }
-    let input = try FileHandle(forReadingFrom: raw)
-    defer { try? input.close() }
-    let decoder = JSONDecoder()
-    var lines: [String] = []
-    var carry = Data()
-    var lineNumber = 0
-    let tokenPatterns = try compileLogTokenPatterns(tokens)
-    while true {
-        let chunk = try input.read(upToCount: 65_536) ?? Data()
-        if chunk.isEmpty { break }
-        carry.append(chunk)
-        while let newline = carry.firstIndex(of: 10) {
-            lineNumber += 1
-            let lineData = Data(carry[..<newline])
-            carry.removeSubrange(...newline)
-            guard let first = lineData.first, first == 123 else { continue }
-            if let record = try? decoder.decode(LogRecord.self, from: lineData) {
-                guard !record.timestamp.isEmpty, !record.eventMessage.isEmpty else {
-                    throw AnalysisError.invalidInput("Unified Log event \(lineNumber) has an empty timestamp or message in \(raw.path).")
-                }
-                let processName = record.processImagePath.map { URL(fileURLWithPath: $0).lastPathComponent }
-                let deviceContext = processName.map { deviceLogProcesses.contains($0) } ?? false
-                let endpointContext = record.processID.map { processIDs.contains($0) } == true &&
-                    messageMatchesTokens(record.eventMessage, patterns: tokenPatterns)
-                if deviceContext || endpointContext {
-                    guard let line = String(data: lineData, encoding: .utf8) else {
-                        throw AnalysisError.invalidInput("Unified Log line \(lineNumber) is not UTF-8: \(raw.path)")
-                    }
-                    guard line.hasSuffix("}") else {
-                        throw AnalysisError.invalidInput("Unified Log line \(lineNumber) is not a JSON object: \(raw.path)")
-                    }
-                    let selection = deviceContext ? "device-service context; not a packet match" : "packet PID and bounded endpoint/name mention; context only"
-                    lines.append(String(line.dropLast()) + ",\"rviCaptureLine\":\(lineNumber),\"rviCaptureSelection\":\"\(selection)\"}")
-                }
-            } else if lineData.range(of: Data("\"count\"".utf8)) == nil {
-                throw AnalysisError.invalidInput("Unexpected Unified Log JSON at line \(lineNumber) in \(raw.path). Inspect the original stream before continuing.")
-            }
-        }
-        guard carry.count <= 1_000_000 else { throw AnalysisError.resourceLimit("Unified Log line exceeds 1 MB at \(raw.path). Inspect the raw stream.") }
-    }
-    let result = lines.isEmpty ? "" : lines.joined(separator: "\n") + "\n"
-    guard result.utf8.count <= 64_000_000 else { throw AnalysisError.resourceLimit("Matched Unified Log events exceed 64 MB in \(raw.path). Stop and review the raw stream.") }
-    try result.write(to: destination, atomically: true, encoding: .utf8)
 }
 
 public func importUnifiedLog(_ url: URL, offsetMicroseconds: Int64) throws -> ImportedEvidence {
     guard FileManager.default.fileExists(atPath: url.path) else { throw AnalysisError.invalidInput("Unified Log export does not exist: \(url.path)") }
     let (hashBefore, bytes) = try fingerprint(url)
     guard bytes <= 64_000_000 else { throw AnalysisError.resourceLimit("Unified Log JSON exceeds 64 MB: \(url.path). Export a narrower time range.") }
-    let data = try Data(contentsOf: url)
-    guard let text = String(data: data, encoding: .utf8) else { throw AnalysisError.invalidInput("Unified Log export must be UTF-8 JSON Lines: \(url.path)") }
+    let data = try readBoundedFile(url, maximumBytes: 64_000_000)
+    guard String(data: data, encoding: .utf8) != nil else { throw AnalysisError.invalidInput("Unified Log export must be UTF-8 JSON Lines: \(url.path)") }
     let artifactID = String(hashBefore.prefix(16)) + "-Unified Log"
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "yyyy-MM-dd HH:mm:ssZ"
-    formatter.isLenient = false
-    let isoFormatter = ISO8601DateFormatter()
-    isoFormatter.formatOptions = [.withInternetDateTime]
+    let timestampParser = UnifiedLogTimestampParser()
     let decoder = JSONDecoder()
     var observations: [Observation] = []
-    for (index, line) in text.components(separatedBy: .newlines).enumerated() where !line.isEmpty {
+    for (index, line) in data.split(separator: 10, omittingEmptySubsequences: false).enumerated() where !line.isEmpty {
+        if line.allSatisfy({ $0 == 9 || $0 == 13 || $0 == 32 }) { continue }
         let event: LogRecord
-        do { event = try decoder.decode(LogRecord.self, from: Data(line.utf8)) }
+        do { event = try decoder.decode(LogRecord.self, from: Data(line)) }
         catch { throw AnalysisError.invalidInput("Invalid Unified Log JSON at line \(index + 1) in \(url.path): \(error)") }
-        let stamp = event.timestamp
-        let baseText: String
-        let microseconds: Int64
-        if let dot = stamp.firstIndex(of: ".") {
-            let remainder = stamp[stamp.index(after: dot)...]
-            let digits = String(remainder.prefix(while: { $0.isNumber }))
-            guard !digits.isEmpty, digits.count <= 9 else {
-                throw AnalysisError.invalidInput("Invalid fractional timestamp at log line \(index + 1) in \(url.path): \(stamp)")
-            }
-            baseText = String(stamp[..<dot]) + remainder.dropFirst(digits.count)
-            guard let micros = Int64(String(digits.prefix(6)).padding(toLength: 6, withPad: "0", startingAt: 0)) else {
-                throw AnalysisError.invalidInput("Invalid fractional timestamp at log line \(index + 1) in \(url.path): \(stamp)")
-            }
-            microseconds = micros
-        } else {
-            baseText = stamp
-            microseconds = 0
+        guard event.rviCaptureLine.map({ $0 > 0 }) != false else {
+            throw AnalysisError.invalidInput("Unified Log source line metadata must be positive at export line \(index + 1).")
         }
-        guard let date = formatter.date(from: baseText) ?? isoFormatter.date(from: baseText) else {
-            throw AnalysisError.invalidInput("Invalid Unified Log timestamp at line \(index + 1) in \(url.path): \(stamp)")
+        let epoch: Int64
+        do { epoch = try timestampParser.microseconds(event.timestamp) }
+        catch let error as AnalysisError {
+            throw AnalysisError.invalidInput("Invalid Unified Log timestamp at line \(index + 1) in \(url.path): \(error.localizedDescription)")
         }
-        let epoch = Int64(date.timeIntervalSince1970) * 1_000_000 + microseconds
         let (adjusted, overflow) = epoch.addingReportingOverflow(offsetMicroseconds)
         guard !overflow else { throw AnalysisError.invalidInput("Clock offset overflows log line \(index + 1) in \(url.path).") }
         let fields: [String: [String]] = [
+            "log.captureLine": event.rviCaptureLine.map { [String($0)] } ?? [],
             "log.captureSelection": event.rviCaptureSelection.map { [$0] } ?? [],
             "log.bootUUID": event.bootUUID.map { [$0] } ?? [],
             "log.processImageUUID": event.processImageUUID.map { [$0] } ?? [],
@@ -326,7 +265,7 @@ public func importUnifiedLog(_ url: URL, offsetMicroseconds: Int64) throws -> Im
             "log.message": [event.eventMessage], "log.process": [URL(fileURLWithPath: event.processImagePath ?? "unknown").lastPathComponent],
             "log.pid": [event.processID.map(String.init) ?? ""], "log.subsystem": [event.subsystem ?? ""], "log.category": [event.category ?? ""]
         ]
-        let recordNumber = event.rviCaptureLine ?? index + 1
+        let recordNumber = index + 1
         observations.append(Observation(id: "\(artifactID):\(recordNumber)", source: .log, artifactID: artifactID,
                                         record: recordNumber, originalMicroseconds: epoch, timeMicroseconds: adjusted,
                                         protocols: [], fields: fields.filter { !$0.value.allSatisfy(\.isEmpty) }))

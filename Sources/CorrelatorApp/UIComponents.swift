@@ -71,7 +71,7 @@ extension ContentView {
 }
 
 func color(_ source: EvidenceSource) -> Color {
-    switch source { case .iphone: .blue; case .mac: .purple; case .log: .orange }
+    switch source { case .iphone: .blue; case .mac: .purple; case .log: .orange; case .iosLog: .teal }
 }
 
 func confidenceColor(_ confidence: Confidence) -> Color {

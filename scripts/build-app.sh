@@ -8,6 +8,7 @@ app_dir="$project_dir/dist/RVI + PKTAP Correlator.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 cp "$product_dir/RVICorrelator" "$app_dir/Contents/MacOS/RVICorrelator"
 cp "$product_dir/RVICaptureHelper" "$app_dir/Contents/MacOS/RVICaptureHelper"
+cp "$product_dir/RVICaptureWorker" "$app_dir/Contents/MacOS/RVICaptureWorker"
 cp -R "$product_dir/RVICorrelator_CorrelatorApp.bundle" "$app_dir/Contents/Resources/"
 cp "$project_dir/assets/branding-v2/icons/macos/RVI-Correlator.icns" "$app_dir/Contents/Resources/AppIcon.icns"
 cat > "$app_dir/Contents/Info.plist" <<'PLIST'

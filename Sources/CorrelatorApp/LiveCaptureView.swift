@@ -50,10 +50,24 @@ extension ContentView {
                     }
                 }
                 if liveSession == nil {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Include iPhone process logs (experimental)", isOn: $collectIOSLogs)
+                            .accessibilityIdentifier("capture.iosLogs.enabled")
+                        if collectIOSLogs {
+                            TextField("pymobiledevice3 executable path", text: $iosLogExecutable)
+                                .textFieldStyle(.roundedBorder).accessibilityIdentifier("capture.iosLogs.executable")
+                            TextField("Current iPhone process PID", text: $iosLogProcessID)
+                                .textFieldStyle(.roundedBorder).frame(maxWidth: 250).accessibilityIdentifier("capture.iosLogs.pid")
+                            Text("Choose one current device PID from Console or idevicesyslog pidlist. Uses the paired device’s OS trace relay at default/error/fault levels; no automatic installation. A restarted process needs a new capture. PID reuse cannot be excluded.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Text("Device logs provide unscored endpoint context. Offset stays 0 ms, alignment unverified. Private fields and missing messages remain unavailable; log loss is not measurable.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }.disabled(liveStarting)
                     HStack(alignment: .top, spacing: 14) {
                         readinessItem("Device", ready: selectedCaptureDevice?.isConnected == true,
                                       detail: selectedCaptureDevice == nil ? "Connect, unlock, trust, then refresh." :
-                                        selectedCaptureDevice?.isConnected == true ? "Physical iPhone reported on USB by devicectl; confirm before capture." : "Connect the physical iPhone by USB, unlock, trust, then refresh.")
+                                        selectedCaptureDevice?.isConnected == true ? "Paired physical iPhone matched to the current USB registry. RVI service checked at start; developer tunnel not required." : "No current USB match for this paired iPhone. Connect, unlock, trust, then refresh.")
                         readinessItem("Apple RVI", ready: LiveCaptureService.rviExecutable() != nil,
                                       detail: LiveCaptureService.rviExecutable() == nil ? "rvictl missing; install Xcode device support." : "rvictl available for capture setup.")
                         readinessItem("Decoder", ready: (try? tsharkExecutable()) != nil,
@@ -62,15 +76,20 @@ extension ContentView {
                 }
                 if let session = liveSession {
                     HStack(spacing: 10) {
-                        Text("Session: \(session.directory.path)").font(.caption.monospaced()).textSelection(.enabled)
+                        let evidenceDirectory = liveFinalized ? session.directory : session.captureDirectory
+                        Text("Session: \(evidenceDirectory.path)").font(.caption.monospaced()).textSelection(.enabled)
                         Button("Reveal in Finder") {
-                            if !NSWorkspace.shared.open(session.directory) {
-                                error = "Finder could not open \(session.directory.path)."
+                            if !NSWorkspace.shared.open(evidenceDirectory) {
+                                error = "Finder could not open \(evidenceDirectory.path)."
                             }
                         }
                             .buttonStyle(.bordered).accessibilityIdentifier("capture.revealSession")
                     }
                     if let status = liveStatus {
+                        if let pid = status.iosLogPID {
+                            Text("iPhone OS trace · collector PID \(pid) · \(status.iosLogBytes ?? 0) bytes saved · \(imports[.iosLog]?.observations.count ?? 0) decoded records · loss unknown")
+                                .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("capture.iosLogs.health")
+                        }
                         HStack(spacing: 22) {
                             healthLabel("iPhone RVI", pid: status.rviPID, packets: status.rviPackets, dropped: status.rviDropped)
                             healthLabel("Mac PKTAP", pid: status.pktapPID, packets: status.pktapPackets, dropped: status.pktapDropped)
@@ -156,9 +175,17 @@ extension ContentView {
         }
         liveStarting = true
         liveWarning = nil
+        let includeIOS = collectIOSLogs
+        let executable = iosLogExecutable
+        let processID = iosLogProcessID
         Task {
             do {
-                let session = try await Task.detached(priority: .userInitiated) { try LiveCaptureService.start(device: device) }.value
+                let session = try await Task.detached(priority: .userInitiated) {
+                    let config = includeIOS ? try LiveCaptureService.iosLogConfiguration(executable: executable, processID: processID) : nil
+                    return try LiveCaptureService.start(device: device, iosLogConfiguration: config)
+                }.value
+                phoneOffsetText = "0"; macOffsetText = "0"; logOffsetText = "0"
+                clocksVerified = false; alignmentMethod = ""; calibrations = []; calibrationPreview = nil
                 sessionContext = nil; focusedPeerID = nil; peerReturnID = nil; expandedPeerFlowIDs = []
                 imports = [:]
                 savedSessionDirectory = nil
@@ -222,14 +249,10 @@ extension ContentView {
             let oldMac = existing[.mac]?.observations ?? []
             let result = try await Task.detached(priority: .userInitiated) { () throws -> ([ImportedEvidence], Investigation?) in
                 let updates = try LiveCaptureService.liveEvidence(session, existingPhone: oldPhone, existingMac: oldMac)
-                let items = updates.map { update -> ImportedEvidence in
-                    guard update.artifact.source != .log, let previous = existing[update.artifact.source] else { return update }
-                    let observations = previous.observations + update.observations
-                    let old = update.artifact
-                    let artifact = Artifact(id: old.id, source: old.source, path: old.path, sha256: old.sha256,
-                                            bytes: old.bytes, records: observations.count, decoder: old.decoder,
-                                            offsetMicroseconds: old.offsetMicroseconds, warnings: old.warnings)
-                    return ImportedEvidence(artifact: artifact, observations: observations)
+                let items = try updates.map { update -> ImportedEvidence in
+                    guard update.artifact.source == .iphone || update.artifact.source == .mac,
+                          let previous = existing[update.artifact.source] else { return update }
+                    return try mergeLiveCapture(previous, update: update)
                 }
                 guard items.contains(where: { $0.artifact.source == .iphone }),
                       items.contains(where: { $0.artifact.source == .mac }) else { return (items, nil) }

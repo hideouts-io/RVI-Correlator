@@ -4,6 +4,7 @@ public enum EvidenceSource: String, Codable, CaseIterable, Sendable {
     case iphone = "iPhone RVI"
     case mac = "Mac PKTAP"
     case log = "Unified Log"
+    case iosLog = "iPhone OS trace"
 }
 
 public enum Direction: String, Codable, Sendable {
@@ -34,11 +35,6 @@ public struct Observation: Identifiable, Codable, Sendable, Hashable {
 
     public func values(_ key: String) -> [String] { fields[key] ?? [] }
     public func first(_ key: String) -> String? { fields[key]?.first }
-    public var sourceIP: String? { first("ip.src") ?? first("ipv6.src") }
-    public var destinationIP: String? { first("ip.dst") ?? first("ipv6.dst") }
-    public var sourcePort: String? { first("tcp.srcport") ?? first("udp.srcport") }
-    public var destinationPort: String? { first("tcp.dstport") ?? first("udp.dstport") }
-    public var transport: String? { first("tcp.srcport") != nil ? "TCP" : first("udp.srcport") != nil ? "UDP" : nil }
     public var process: String? { first("pktap.cmdname") ?? first("frame.darwin.process_info.pname") ?? first("log.process") }
     public var pid: String? { validPID(first("pktap.pid") ?? first("frame.darwin.process_info.pid") ?? first("log.pid")) }
     public var effectivePID: String? { validPID(first("pktap.epid") ?? first("frame.darwin.process_info.epid")) }
@@ -74,7 +70,7 @@ public struct Observation: Identifiable, Codable, Sendable, Hashable {
     public var dnsNames: [String] { values("dns.qry.name").map(normalizeHostname) }
     public var hostnames: [String] { Array(Set(sni + dnsNames + values("http.host").map(normalizeHostname))).sorted() }
     public var summary: String {
-        if source == .log { return first("log.message") ?? "Log event" }
+        if source == .log || source == .iosLog { return first("log.message") ?? "Log event" }
         if first("dns.flags.response") == "1" || first("dns.flags.response") == "True" {
             let names = dnsNames.joined(separator: ", ")
             let aliases = values("dns.cname").joined(separator: ", ")
@@ -88,14 +84,14 @@ public struct Observation: Identifiable, Codable, Sendable, Hashable {
         return first("_ws.col.Info") ?? protocols.joined(separator: " / ")
     }
     public var kind: String {
-        if source == .log { return first("log.category") ?? "Log event" }
+        if source == .log || source == .iosLog { return first("log.category") ?? "Log event" }
         if !values("dns.qry.name").isEmpty { return first("dns.flags.response") == "1" || first("dns.flags.response") == "True" ? "DNS response" : "DNS query" }
         if protocols.contains("quic") { return sni.isEmpty ? "QUIC" : "QUIC ClientHello" }
         if values("tls.handshake.type").contains("1") { return "TLS ClientHello" }
         return protocols.last?.uppercased() ?? "Packet"
     }
     public var streamIdentity: String {
-        let stream = first("tcp.stream") ?? first("udp.stream")
+        let stream = hasAmbiguousPacketLayers ? nil : first("tcp.stream") ?? first("udp.stream")
         return [artifactID, transport ?? "other", stream ?? "frame-\(record)", processIdentity, interface ?? "no-interface"].joined(separator: ":")
     }
 }
@@ -193,6 +189,7 @@ public struct Investigation: Codable, Sendable {
     public let settings: CorrelationSettings
     public let artifacts: [Artifact]
     public let observations: [Observation]
+    public let sessions: [PacketSession]
     public let correlations: [Correlation]
     public let interpretation: String
     public let diagnostics: CorrelationDiagnostics

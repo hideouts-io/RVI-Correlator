@@ -10,12 +10,15 @@ import Testing
       {"hardwareProperties":{"udid":"usb-phone","reality":"physical","deviceType":"iPhone","platform":"iOS"},"deviceProperties":{"name":"USB iPhone"},"connectionProperties":{"pairingState":"paired","tunnelState":"connected","transportType":"wired"}}
     ]}}
     """
-    let devices = try parseCaptureDevices(Data(json.utf8))
+    let devices = try parseCaptureDevices(Data(json.utf8), usbSerials: ["usb-phone"])
     #expect(devices.map(\.id) == ["wifi-phone", "usb-phone"])
     #expect(devices[0].isConnected == false)
     #expect(devices[0].connection.contains("Wi-Fi"))
     #expect(devices[1].isConnected == true)
     #expect(devices[1].connection.contains("USB"))
+    let tunnelUnavailable = json.replacingOccurrences(of: "\"tunnelState\":\"connected\"", with: "\"tunnelState\":\"unavailable\"")
+    #expect(try parseCaptureDevices(Data(tunnelUnavailable.utf8), usbSerials: ["usbphone"])[1].isConnected)
+    #expect(try parseCaptureDevices(Data(json.utf8), usbSerials: []).allSatisfy { !$0.isConnected })
 }
 
 @Test func importsDecodedPKTAPAndCorrelatesWithoutCausalClaim() throws {
@@ -35,9 +38,9 @@ import Testing
 
 @Test func rejectsTimestampOnlyAndUnverifiedHighConfidence() throws {
     let first = Observation(id: "p:1", source: .iphone, artifactID: "p", record: 1, originalMicroseconds: 1_000_000, timeMicroseconds: 1_000_000,
-                            protocols: ["ip", "tcp", "tls"], fields: ["ip.dst": ["203.0.113.5"], "tcp.srcport": ["50000"], "tcp.dstport": ["443"], "tls.handshake.type": ["1"], "tls.handshake.extensions_server_name": ["example.apple.com"], "tcp.stream": ["1"]])
+                            protocols: ["ip", "tcp", "tls"], fields: ["ip.src": ["192.0.2.10"], "ip.dst": ["203.0.113.5"], "tcp.srcport": ["50000"], "tcp.dstport": ["443"], "tls.handshake.type": ["1"], "tls.handshake.extensions_server_name": ["example.apple.com"], "tcp.stream": ["1"]])
     let mac = Observation(id: "m:1", source: .mac, artifactID: "m", record: 1, originalMicroseconds: 1_005_000, timeMicroseconds: 1_005_000,
-                          protocols: ["pktap", "ip", "tcp", "tls"], fields: ["ip.dst": ["203.0.113.6"], "tcp.srcport": ["50001"], "tcp.dstport": ["443"], "tls.handshake.type": ["1"], "tls.handshake.extensions_server_name": ["example.apple.com"], "pktap.pid": ["423"], "pktap.cmdname": ["apsd"], "pktap.ifname": ["en0"], "pktap.flags": ["0x2"], "tcp.stream": ["2"]])
+                          protocols: ["pktap", "ip", "tcp", "tls"], fields: ["ip.src": ["192.0.2.10"], "ip.dst": ["203.0.113.6"], "tcp.srcport": ["50001"], "tcp.dstport": ["443"], "tls.handshake.type": ["1"], "tls.handshake.extensions_server_name": ["example.apple.com"], "pktap.pid": ["423"], "pktap.cmdname": ["apsd"], "pktap.ifname": ["en0"], "pktap.flags": ["0x2"], "tcp.stream": ["2"]])
     let pa = Artifact(id: "p", source: .iphone, path: "fixture", sha256: "synthetic", bytes: 0, records: 1, decoder: "fixture", offsetMicroseconds: 0, warnings: [])
     let ma = Artifact(id: "m", source: .mac, path: "fixture", sha256: "synthetic", bytes: 0, records: 1, decoder: "fixture", offsetMicroseconds: 0, warnings: [])
     let a = ImportedEvidence(artifact: pa, observations: [first])

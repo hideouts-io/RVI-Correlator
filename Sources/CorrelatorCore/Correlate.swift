@@ -97,6 +97,7 @@ public func correlate(_ imports: [ImportedEvidence], settings: CorrelationSettin
         throw AnalysisError.invalidInput("Import both an iPhone RVI capture and a Mac PKTAP capture before correlating.")
     }
     let observations = imports.flatMap(\.observations).sorted { $0.timeMicroseconds < $1.timeMicroseconds }
+    try validateObservationIdentities(observations)
     let phones = observations.filter { $0.source == .iphone }
     let macs = observations.filter { $0.source == .mac }.sorted { $0.timeMicroseconds < $1.timeMicroseconds }
     let logIndex = Dictionary(grouping: observations.filter { $0.source == .log && $0.pid != nil }, by: { $0.pid ?? "" })
@@ -110,7 +111,10 @@ public func correlate(_ imports: [ImportedEvidence], settings: CorrelationSettin
     for phone in initiations {
         guard let key = endpointKey(phone), let endpointPackets = macIndex[key] else {
             noEndpoint += 1
-            rejections.append(CandidateRejection(observationID: phone.id, reason: "No Mac packet shares the observed remote IP, port and transport.", nearestMilliseconds: nil))
+            let reason = phone.hasAmbiguousPacketLayers
+                ? "Ambiguous packet layers cannot bind a scored IP/port/transport endpoint. Inspect the raw fields."
+                : "No Mac packet shares the observed remote IP, port and transport."
+            rejections.append(CandidateRejection(observationID: phone.id, reason: reason, nearestMilliseconds: nil))
             continue
         }
         let eligible = endpointPackets.filter { !(($0.interface ?? "").hasPrefix("rvi")) }
@@ -153,12 +157,15 @@ public func correlate(_ imports: [ImportedEvidence], settings: CorrelationSettin
     let best = Dictionary(grouping: results, by: { result in
         result.iphoneID + "|" + (macByID[result.macID]?.streamIdentity ?? result.macID)
     }).compactMap { $0.value.max(by: { $0.score < $1.score }) }
-    return Investigation(schemaVersion: 3, generatedAt: Date(), isDemonstration: isDemonstration, settings: settings,
-                         artifacts: imports.map(\.artifact), observations: observations,
-                         correlations: best.sorted {
+    let ranked = best.sorted {
                              if $0.score != $1.score { return $0.score > $1.score }
                              if $0.deltaMilliseconds != $1.deltaMilliseconds { return $0.deltaMilliseconds < $1.deltaMilliseconds }
                              return $0.id < $1.id
-                         },
-                         interpretation: interpretationNotice, diagnostics: diagnostics, peerReview: try reviewPeerEvidence(observations, settings: settings), hostnameEvidence: hosts)
+                         }
+    let peerReview = try reviewPeerEvidence(observations, settings: settings)
+    return Investigation(schemaVersion: 4, generatedAt: Date(), isDemonstration: isDemonstration, settings: settings,
+                         artifacts: imports.map(\.artifact), observations: observations,
+                         sessions: packetSessions(observations, hostnameEvidence: hosts, correlations: ranked, peerReview: peerReview),
+                         correlations: ranked,
+                         interpretation: interpretationNotice, diagnostics: diagnostics, peerReview: peerReview, hostnameEvidence: hosts)
 }

@@ -62,8 +62,8 @@ private func evidence(_ source: EvidenceSource, packets: [Observation]) -> Impor
 }
 
 @Test func rejectionDiagnosticsAndPIDReuseDoNotInventMatches() throws {
-    let phone = packet("p:1", source: .iphone, time: 1_000_000, fields: ["ip.dst": ["203.0.113.5"], "tcp.srcport": ["50000"], "tcp.dstport": ["443"], "tcp.flags.syn": ["1"], "tcp.flags.ack": ["0"]])
-    let mac = packet("m:1", source: .mac, time: 2_000_000, fields: ["ip.dst": ["203.0.113.5"], "tcp.srcport": ["51000"], "tcp.dstport": ["443"], "pktap.flags": ["0x2"], "pktap.pid": ["321"], "pktap.cmdname": ["apsd"], "pktap.ifname": ["en0"]])
+    let phone = packet("p:1", source: .iphone, time: 1_000_000, fields: ["ip.src": ["192.0.2.10"], "ip.dst": ["203.0.113.5"], "tcp.srcport": ["50000"], "tcp.dstport": ["443"], "tcp.flags.syn": ["1"], "tcp.flags.ack": ["0"]])
+    let mac = packet("m:1", source: .mac, time: 2_000_000, fields: ["ip.src": ["192.0.2.10"], "ip.dst": ["203.0.113.5"], "tcp.srcport": ["51000"], "tcp.dstport": ["443"], "pktap.flags": ["0x2"], "pktap.pid": ["321"], "pktap.cmdname": ["apsd"], "pktap.ifname": ["en0"]])
     let log = packet("l:1", source: .log, time: 2_000_000, fields: ["log.pid": ["321"], "log.process": ["another-process"], "log.message": ["203.0.113.5"]])
     let inputs = [evidence(.iphone, packets: [phone]), evidence(.mac, packets: [mac]), evidence(.log, packets: [log])]
     let narrow = try correlate(inputs, settings: CorrelationSettings(windowMilliseconds: 100, uncertaintyMilliseconds: 1000, clocksVerified: false, alignmentMethod: ""), isDemonstration: true)
@@ -109,7 +109,7 @@ private func evidence(_ source: EvidenceSource, packets: [Observation]) -> Impor
 }
 
 @Test func conflictingHostnamesCapConfidenceAndUnknownProcessesStayUnknown() throws {
-    let common = ["ip.dst": ["203.0.113.5"], "tcp.srcport": ["51000"], "tcp.dstport": ["443"], "tls.handshake.type": ["1"], "tcp.stream": ["1"]]
+    let common = ["ip.src": ["192.0.2.10"], "ip.dst": ["203.0.113.5"], "tcp.srcport": ["51000"], "tcp.dstport": ["443"], "tls.handshake.type": ["1"], "tcp.stream": ["1"]]
     let phone = packet("p:1", source: .iphone, time: 1_000_000, fields: common.merging(["tls.handshake.extensions_server_name": ["first.example"]]) { _, new in new })
     let mac = packet("m:1", source: .mac, time: 1_001_000, fields: common.merging(["tls.handshake.extensions_server_name": ["other.example"], "pktap.pid": ["321"], "pktap.cmdname": ["apsd"], "pktap.flags": ["2"]]) { _, new in new })
     let result = try correlate([evidence(.iphone, packets: [phone]), evidence(.mac, packets: [mac])], settings: CorrelationSettings(windowMilliseconds: 250, uncertaintyMilliseconds: 1, clocksVerified: true, alignmentMethod: "Independent reference"), isDemonstration: true)

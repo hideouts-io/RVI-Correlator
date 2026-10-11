@@ -26,6 +26,7 @@ struct RVICorrelatorApp: App {
 
 enum WorkspaceTab: String, CaseIterable, Hashable {
     case overview = "Overview"
+    case sessions = "Sessions"
     case correlations = "Correlations"
     case timeline = "Timeline"
     case sources = "Evidence sources"
@@ -33,6 +34,7 @@ enum WorkspaceTab: String, CaseIterable, Hashable {
     var symbol: String {
         switch self {
         case .overview: "square.grid.2x2"
+        case .sessions: "rectangle.stack"
         case .correlations: "point.3.connected.trianglepath.dotted"
         case .timeline: "clock.arrow.circlepath"
         case .sources: "externaldrive"

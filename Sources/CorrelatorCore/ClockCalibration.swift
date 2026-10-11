@@ -35,6 +35,7 @@ public func calibrateClock(source: EvidenceSource, markers: [ClockMarker], obser
     guard measurementUncertaintyMilliseconds.isFinite, measurementUncertaintyMilliseconds >= 0, measurementUncertaintyMilliseconds <= 60_000 else {
         throw AnalysisError.invalidInput("Reference measurement uncertainty must be finite and between 0 and 60,000 ms.")
     }
+    try validateObservationIdentities(observations)
     let lookup = Dictionary(uniqueKeysWithValues: observations.map { ($0.id, $0) })
     let samples = try markers.map { marker -> (time: Int64, delta: Int64) in
         guard let left = lookup[marker.sourceID], let right = lookup[marker.referenceID], left.source == source, right.source == .mac else {

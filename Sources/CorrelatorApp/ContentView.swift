@@ -14,6 +14,15 @@ struct ContentView: View {
     @State var isDemoSession = false
     @State var selectedCorrelationID: String?
     @State var selectedObservationID: String?
+    @State var selectedSessionID: String?
+    @State var focusedSessionID: String?
+    @State var sessionSearch = ""
+    @State var rawPacketID: String?
+    @State var rawPacket: RawPacketEvidence?
+    @State var rawPacketBusy = false
+    @State var rawPacketError: String?
+    @State var selectedByteRangeID: String?
+    @State var iosLogReturnID: String?
     @State var focusedCorrelationID: String?
     @State var pendingSource: EvidenceSource?
     @State var pickingFile = false
@@ -47,11 +56,16 @@ struct ContentView: View {
     @State var liveStatus: LiveCaptureStatus?
     @State var liveFinalized = false
     @State var liveStarting = false
+    @State var collectIOSLogs = false
+    @State var iosLogExecutable = LiveCaptureService.iosLogExecutable()
+    @State var iosLogProcessID = ""
     @State var liveWarning: String?
     @State var liveHealthFailure: String?
     @State var savedSessionDirectory: URL?
 
     var selectedCorrelation: Correlation? { investigation?.correlations.first { $0.id == selectedCorrelationID } }
+    var selectedSession: PacketSession? { investigation?.sessions.first { $0.id == selectedSessionID } }
+    var focusedSession: PacketSession? { investigation?.sessions.first { $0.id == focusedSessionID } }
     var displayedObservations: [Observation] {
         investigation?.observations ?? imports.values.flatMap(\.observations).sorted { $0.timeMicroseconds < $1.timeMicroseconds }
     }
@@ -62,6 +76,13 @@ struct ContentView: View {
     var focusedCorrelation: Correlation? { investigation?.correlations.first { $0.id == focusedCorrelationID } }
     var focusedPeer: PeerFlow? { investigation?.peerReview.flows.first { $0.id == focusedPeerID } }
     var filteredObservations: [Observation] {
+        if let focusedSession {
+            let correlations = investigation?.correlations.filter { focusedSession.correlationIDs.contains($0.id) } ?? []
+            let peers = investigation?.peerReview.flows.filter { focusedSession.peerFlowIDs.contains($0.id) } ?? []
+            let ids = Set(focusedSession.packetIDs + correlations.flatMap { [$0.iphoneID, $0.macID] + $0.logIDs } +
+                          peers.flatMap { $0.pairs.flatMap { [$0.iphoneID, $0.macID] } + $0.logIDs })
+            return displayedObservations.filter { ids.contains($0.id) }
+        }
         if let focusedPeer {
             let ids = Set(focusedPeer.pairs.flatMap { [$0.iphoneID, $0.macID] } + focusedPeer.logIDs)
             return displayedObservations.filter { ids.contains($0.id) }
@@ -97,12 +118,16 @@ struct ContentView: View {
                 }
                 .background(canvas)
                 .onChange(of: selectedTab) { _, tab in
+                    if tab == .sessions {
+                        selectedObservationID = nil
+                        selectedCorrelationID = nil
+                    }
                     if tab == .correlations, let peerReturnID {
                         Task { await Task.yield(); proxy.scrollTo(peerReturnID, anchor: .top) }
                     }
                 }
                 }
-                if selectedCorrelation != nil || selectedObservation != nil {
+                if selectedCorrelation != nil || selectedObservation != nil || selectedSession != nil {
                     Divider()
                     detailPanel.frame(minWidth: 330, idealWidth: 370, maxWidth: 420)
                 }
@@ -149,7 +174,7 @@ struct ContentView: View {
             }.padding(.horizontal, 16).padding(.top, 24)
             List(selection: $selectedTab) {
                 Section("INVESTIGATE") {
-                    ForEach([WorkspaceTab.overview, .correlations, .timeline], id: \.self) { tab in
+                    ForEach([WorkspaceTab.overview, .sessions, .correlations, .timeline], id: \.self) { tab in
                         Label(tab.rawValue, systemImage: tab.symbol).tag(tab).accessibilityIdentifier("navigation.\(tab.rawValue)")
                     }
                 }
@@ -199,6 +224,7 @@ struct ContentView: View {
     var subtitle: String {
         switch selectedTab {
         case .overview: "Place packet and log evidence on one accountable timeline."
+        case .sessions: "Observed packet flows within one capture, with inferred links kept separate."
         case .correlations: "Candidate relationships with visible evidence and uncertainty."
         case .timeline: "Direct observations, ordered by adjusted capture time in the Mac's local timezone."
         case .sources: "Original artifacts, integrity, clock offsets, and coverage."
@@ -209,6 +235,7 @@ struct ContentView: View {
     @ViewBuilder var mainArea: some View {
         switch selectedTab {
         case .overview: overview
+        case .sessions: sessionsView
         case .correlations: correlationsView
         case .timeline: timelineView
         case .sources: sourcesView

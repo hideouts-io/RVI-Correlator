@@ -119,6 +119,14 @@ extension ContentView {
 
     var timelineView: some View {
         VStack(alignment: .leading, spacing: 14) {
+            if let focusedSession {
+                HStack {
+                    Text("Session evidence: \(focusedSession.packetIDs.count) observed packets; linked candidates and their logs are inferred context. Other filters are suspended.").font(.caption)
+                    Button("Return to session") { focusedSessionID = nil; selectedObservationID = nil; selectedTab = .sessions }
+                        .accessibilityIdentifier("session.return")
+                    Button("Show all events") { focusedSessionID = nil }.accessibilityIdentifier("session.clearFocus")
+                }
+            }
             if focusedPeerID != nil && focusedPeer == nil {
                 Text("The focused peer relationship is no longer present in this investigation.").font(.caption).foregroundStyle(.orange)
                 Button("Clear unavailable peer focus") { focusedPeerID = nil }.accessibilityIdentifier("peer.clearUnavailable")
@@ -151,7 +159,7 @@ extension ContentView {
                     ForEach(EvidenceSource.allCases, id: \.self) { source in Text(source.rawValue).tag(source as EvidenceSource?) }
                 }.frame(width: 190)
                 Text("\(filteredObservations.count) shown").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            }.disabled(focusedPeerID != nil)
+            }.disabled(focusedPeerID != nil || focusedSessionID != nil)
             if filteredObservations.isEmpty { card { emptyMessage(imports.isEmpty ? "Import evidence to view a normalized timeline." : "No observations match this filter.") } }
             else {
                 LazyVStack(spacing: 1) {
@@ -199,7 +207,9 @@ extension ContentView {
                             }
                         } else {
                             Text("No artifact loaded.").foregroundStyle(.secondary)
-                            importButton(source, "Import \(source.rawValue)", "plus")
+                            if source == .iosLog {
+                                Text("Enable process logs before a live session, or open a finalized session containing their collection provenance. Standalone naive timestamps are not imported without that provenance.").font(.caption).foregroundStyle(.secondary)
+                            } else { importButton(source, "Import \(source.rawValue)", "plus") }
                         }
                     }
                 }
@@ -270,13 +280,14 @@ extension ContentView {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text(selectedCorrelation == nil ? "OBSERVATION" : "POSSIBLE CORRELATION")
+                    Text(selectedCorrelation != nil ? "POSSIBLE CORRELATION" : selectedObservation != nil ? "OBSERVATION" : "PACKET SESSION")
                         .font(.caption.bold()).tracking(1.6).foregroundStyle(.secondary)
                     Spacer()
-                    Button { selectedCorrelationID = nil; selectedObservationID = nil } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain)
+                    Button { selectedCorrelationID = nil; selectedObservationID = nil; selectedSessionID = nil } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain)
                 }
                 if let correlation = selectedCorrelation { correlationDetail(correlation) }
                 if let observation = selectedObservation { observationDetail(observation) }
+                else if let session = selectedSession { sessionDetail(session) }
             }.padding(20)
         }.background(.white)
     }
@@ -343,7 +354,8 @@ extension ContentView {
             detailLine("Original epoch microseconds", String(observation.originalMicroseconds))
             detailLine("Artifact", observation.artifactID)
             detailLine("Record", "\(observation.record)")
-            if observation.source != .log {
+            if observation.source == .iphone || observation.source == .mac {
+                rawPacketButton(observation)
                 detailLine("Protocol stack", observation.protocols.joined(separator: " → "))
                 detailLine("Source", "\(observation.sourceIP ?? "?"):\(observation.sourcePort ?? "?")")
                 detailLine("Destination", "\(observation.destinationIP ?? "?"):\(observation.destinationPort ?? "?")")
@@ -358,7 +370,15 @@ extension ContentView {
             }
             Divider()
             if observation.source == .log { logActivityDetails(observation) }
-            else { hostnameDetails(observation) }
+            else if observation.source == .iosLog {
+                if let returnID = iosLogReturnID, self.observation(returnID) != nil {
+                    Button("Return to RVI packet") { selectedObservationID = returnID; iosLogReturnID = nil }
+                        .accessibilityIdentifier("evidence.iosLog.return")
+                }
+                explanation("iPhone process evidence", "This process emitted the device log. It is not Mac PKTAP attribution or proof that the process owns any RVI packet. Boot identity and activity identifiers are unavailable; PID and image UUID do not prove a process lifetime.")
+                explanation("Clock and collection provenance", "Original collector timestamp is retained below. TZ=UTC was applied when collecting; clock offset is 0 ms and alignment remains unverified. Missing messages and redacted fields cannot support a link.")
+            } else { hostnameDetails(observation) }
+            if observation.source == .iphone { iosLogContextDetails(observation) }
             if let rejection = investigation?.diagnostics.rejections.first(where: { $0.observationID == observation.id }) {
                 explanation("Why no candidate", rejection.reason + (rejection.nearestMilliseconds.map { " Nearest matching Mac packet: \(String(format: "%.3f", $0)) ms." } ?? ""))
             }

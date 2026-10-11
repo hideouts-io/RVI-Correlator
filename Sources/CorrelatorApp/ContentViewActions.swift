@@ -32,6 +32,7 @@ extension ContentView {
                 isDemoSession = false
                 selectedCorrelationID = nil
                 selectedObservationID = nil
+                clearSessionSelection()
                 focusedCorrelationID = nil
                 phoneOffsetText = "0"
                 macOffsetText = "0"
@@ -75,6 +76,7 @@ extension ContentView {
                 investigation = nil
                 selectedCorrelationID = nil
                 selectedObservationID = nil
+                clearSessionSelection()
                 focusedCorrelationID = nil
                 rebuild()
             } catch { busy = false; self.error = error.localizedDescription }
@@ -104,6 +106,7 @@ extension ContentView {
                 investigation = nil
                 selectedCorrelationID = nil
                 selectedObservationID = nil
+                clearSessionSelection()
                 focusedCorrelationID = nil
                 rebuild(demonstration: true)
             } catch { busy = false; self.error = error.localizedDescription }
@@ -111,6 +114,7 @@ extension ContentView {
     }
 
     func parseOffset(_ source: EvidenceSource) throws -> Int64 {
+        if source == .iosLog { return 0 }
         let value = source == .iphone ? phoneOffsetText : source == .mac ? macOffsetText : logOffsetText
         guard let ms = Double(value), ms.isFinite, abs(ms) <= 86_400_000 else {
             throw AnalysisError.invalidInput("\(source.rawValue) clock offset must be a finite number of milliseconds within one day.")

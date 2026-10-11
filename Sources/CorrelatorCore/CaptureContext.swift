@@ -63,10 +63,14 @@ public struct CaptureContext: Codable, Sendable {
     }
 }
 
-public func writeCaptureContext(_ context: CaptureContext, to url: URL) throws {
+public func captureContextData(_ context: CaptureContext) throws -> Data {
     try context.validate()
     let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601; encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    try encoder.encode(context).write(to: url, options: .atomic)
+    return try encoder.encode(context)
+}
+
+public func writeCaptureContext(_ context: CaptureContext, to url: URL) throws {
+    try captureContextData(context).write(to: url, options: .atomic)
 }
 
 public func readCaptureContext(_ url: URL) throws -> CaptureContext {

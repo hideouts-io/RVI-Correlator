@@ -62,6 +62,7 @@ func decodeDNSRecords(_ url: URL, records: [Int], hasDNS: Bool) throws -> [Int: 
     do { packets = try JSONDecoder().decode([DNSWirePacket].self, from: data) }
     catch { throw AnalysisError.decoderFailed("Cannot decode structured DNS answers in \(url.path): \(error)") }
     var result: [Int: [DNSResourceRecord]] = [:]
+    var answerBudget = PacketBudget(records: 0, bytes: 0)
     for packet in packets {
         guard let number = Int(packet.source.layers.frame.number) else { throw AnalysisError.decoderFailed("DNS packet has an invalid frame number in \(url.path).") }
         let layers = packet.source.layers
@@ -82,6 +83,9 @@ func decodeDNSRecords(_ url: URL, records: [Int], hasDNS: Bool) throws -> [Int: 
                     guard let value, let owner = record.owner, !value.isEmpty, !owner.isEmpty else {
                         throw AnalysisError.decoderFailed("DNS frame \(number) has missing RDATA or owner for type \(type) in \(url.path).")
                     }
+                    answerBudget = try addingPacketBudget(answerBudget, records: 1,
+                        bytes: 128 + owner.utf8.count + value.utf8.count,
+                        limit: PacketBudget(records: maximumPacketRecords, bytes: maximumPacketBytes))
                     answers.append(DNSResourceRecord(owner: owner, type: type, value: value, ttlSeconds: ttl))
                 }
             }

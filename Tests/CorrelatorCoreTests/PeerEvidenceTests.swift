@@ -21,6 +21,12 @@ private func peerPacket(_ id: String, source: EvidenceSource, time: Int64, seque
     #expect(!result.flows[0].bidirectional)
     #expect(result.flows[0].pairs[0].deltaMilliseconds == 1)
     #expect(phone1.originalMicroseconds == phone1.timeMicroseconds)
+    let sessions = packetSessions([phone1, phone2, mac1, mac2], hostnameEvidence: [:], correlations: [], peerReview: result)
+    #expect(sessions.count == 2)
+    #expect(sessions.allSatisfy { $0.peerFlowIDs == [result.flows[0].id] })
+    #expect(sessions.allSatisfy { session in
+        session.packetIDs.allSatisfy { id in session.source == .iphone ? id.hasPrefix("p:") : id.hasPrefix("m:") }
+    })
     let mirror = peerPacket("m:3", source: .mac, time: 999_000, sequence: "123", direction: "2", interface: "rvi0")
     #expect(try reviewPeerEvidence([phone1, phone2, mirror, mac2], settings: settings).flows.isEmpty)
     let duplicate = peerPacket("m:4", source: .mac, time: 999_500, sequence: "123", direction: "2", interface: "utun4")

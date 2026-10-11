@@ -37,7 +37,10 @@ private struct DeviceList: Decodable {
     }
 }
 
-public func parseCaptureDevices(_ data: Data) throws -> [CaptureDevice] {
+/// USB presence comes from the current I/O Registry, independently of CoreDevice's
+/// developer tunnel. RVI still has to establish its capture service at session start.
+public func parseCaptureDevices(_ data: Data, usbSerials: Set<String>) throws -> [CaptureDevice] {
+    let connectedSerials = Set(usbSerials.map { $0.replacingOccurrences(of: "-", with: "").lowercased() })
     let list: DeviceList
     do { list = try JSONDecoder().decode(DeviceList.self, from: data) }
     catch { throw AnalysisError.invalidInput("devicectl device list has an unexpected structure: \(error)") }
@@ -45,6 +48,7 @@ public func parseCaptureDevices(_ data: Data) throws -> [CaptureDevice] {
         device.hardwareProperties.reality == .physical && device.hardwareProperties.deviceType == "iPhone" && device.hardwareProperties.platform == "iOS"
     }.map { device in
         let connection = device.connectionProperties
+        let usbPresent = connectedSerials.contains(device.hardwareProperties.udid.replacingOccurrences(of: "-", with: "").lowercased())
         let transport: String
         switch connection.transportType {
         case "wired": transport = "USB"
@@ -53,9 +57,41 @@ public func parseCaptureDevices(_ data: Data) throws -> [CaptureDevice] {
         case nil: transport = "transport unknown"
         }
         return CaptureDevice(id: device.hardwareProperties.udid, name: device.deviceProperties.name,
-                             connection: "\(connection.pairingState) · \(transport) · tunnel \(connection.tunnelState ?? "unknown")",
-                             isConnected: connection.pairingState == "paired" && connection.tunnelState == "connected" && connection.transportType == "wired")
+                             connection: "\(connection.pairingState) · \(usbPresent ? "USB verified" : "USB absent (CoreDevice: \(transport))") · tunnel \(connection.tunnelState ?? "unknown")",
+                             isConnected: connection.pairingState == "paired" && usbPresent)
     }
+}
+
+private struct USBRegistryDevice: Decodable {
+    let serial: String?
+    let vendor: Int?
+    let children: [USBRegistryDevice]?
+    enum CodingKeys: String, CodingKey {
+        case serial = "USB Serial Number", vendor = "idVendor", children = "IORegistryEntryChildren"
+    }
+}
+
+public func parseAppleUSBSerials(_ data: Data) throws -> Set<String> {
+    func serials(_ devices: [USBRegistryDevice]) -> [String] {
+        devices.flatMap { device in
+            (device.vendor == 1452 ? device.serial.map { [$0] } ?? [] : []) + serials(device.children ?? [])
+        }
+    }
+    do { return Set(serials(try PropertyListDecoder().decode([USBRegistryDevice].self, from: data))) }
+    catch { throw AnalysisError.invalidInput("Could not decode the current USB I/O Registry inventory: \(error)") }
+}
+
+public func connectedAppleUSBSerials() throws -> Set<String> {
+    let process = Process(); let output = Pipe(); let errors = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/sbin/ioreg")
+    process.arguments = ["-r", "-c", "IOUSBHostDevice", "-a"]
+    process.standardOutput = output; process.standardError = errors
+    try process.run()
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    let diagnostic = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    guard process.terminationStatus == 0 else { throw AnalysisError.invalidInput("USB discovery via ioreg failed (exit \(process.terminationStatus)): \(diagnostic)") }
+    return try parseAppleUSBSerials(data)
 }
 
 public struct LiveCaptureStatus: Codable, Sendable {
@@ -69,13 +105,17 @@ public struct LiveCaptureStatus: Codable, Sendable {
     public let rviPID: Int32?
     public let pktapPID: Int32?
     public let logPID: Int32?
+    public let iosLogPID: Int32?
+    public let iosLogStreamStartedAt: Date?
+    public let iosLogBytes: UInt64?
     public let error: String?
     public let rviPackets: Int?
     public let rviDropped: Int?
     public let pktapPackets: Int?
     public let pktapDropped: Int?
 
-    public init(phase: String, startedAt: Date, updatedAt: Date, rviInterface: String?, rviStreamStartedAt: Date?, pktapStreamStartedAt: Date?, logStreamStartedAt: Date?, rviPID: Int32?, pktapPID: Int32?, logPID: Int32?, error: String?, rviPackets: Int?, rviDropped: Int?, pktapPackets: Int?, pktapDropped: Int?) {
+    public init(phase: String, startedAt: Date, updatedAt: Date, rviInterface: String?, rviStreamStartedAt: Date?, pktapStreamStartedAt: Date?, logStreamStartedAt: Date?, rviPID: Int32?, pktapPID: Int32?, logPID: Int32?, iosLogPID: Int32?, iosLogStreamStartedAt: Date?, iosLogBytes: UInt64?, error: String?, rviPackets: Int?, rviDropped: Int?, pktapPackets: Int?, pktapDropped: Int?) {
+        self.iosLogPID = iosLogPID; self.iosLogStreamStartedAt = iosLogStreamStartedAt; self.iosLogBytes = iosLogBytes
         self.phase = phase; self.startedAt = startedAt; self.updatedAt = updatedAt
         self.rviInterface = rviInterface; self.rviStreamStartedAt = rviStreamStartedAt
         self.pktapStreamStartedAt = pktapStreamStartedAt; self.logStreamStartedAt = logStreamStartedAt

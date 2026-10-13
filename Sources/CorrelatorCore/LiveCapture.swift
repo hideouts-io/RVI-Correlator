@@ -71,7 +71,10 @@ private struct USBRegistryDevice: Decodable {
     }
 }
 
+/// Parses archive output from a successful ioreg query. No matching registry
+/// entries produce zero bytes rather than an empty property list.
 public func parseAppleUSBSerials(_ data: Data) throws -> Set<String> {
+    guard !data.isEmpty else { return [] }
     func serials(_ devices: [USBRegistryDevice]) -> [String] {
         devices.flatMap { device in
             (device.vendor == 1452 ? device.serial.map { [$0] } ?? [] : []) + serials(device.children ?? [])

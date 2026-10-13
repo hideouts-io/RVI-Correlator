@@ -18,7 +18,9 @@ import Testing
     #expect(devices[1].connection.contains("USB"))
     let tunnelUnavailable = json.replacingOccurrences(of: "\"tunnelState\":\"connected\"", with: "\"tunnelState\":\"unavailable\"")
     #expect(try parseCaptureDevices(Data(tunnelUnavailable.utf8), usbSerials: ["usbphone"])[1].isConnected)
-    #expect(try parseCaptureDevices(Data(json.utf8), usbSerials: []).allSatisfy { !$0.isConnected })
+    let emptyUSBInventory = try parseAppleUSBSerials(Data())
+    let disconnected = try parseCaptureDevices(Data(json.utf8), usbSerials: emptyUSBInventory)
+    #expect(disconnected.allSatisfy { !$0.isConnected && $0.connection.contains("USB absent") })
 }
 
 @Test func importsDecodedPKTAPAndCorrelatesWithoutCausalClaim() throws {

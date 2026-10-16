@@ -8,6 +8,25 @@ import Testing
     #expect(throws: AnalysisError.self) { try iosLogEpoch("2026-02-30T03:40:39") }
 }
 
+@Test func iosLogCapabilitiesRemainDistinctAndEvidenceConditionsAreExplicit() throws {
+    #expect(iosLogCapabilityLabels() == [
+        .osLogUnifiedLogging, .syslogCompatibility, .dvtTelemetry,
+        .logarchive, .sysdiagnose, .syntheticFixture
+    ])
+    let status = IOSLogCollectionStatus(source: .osLogUnifiedLogging, state: .partial,
+                                        redaction: .possible, droppedRecords: .unverified,
+                                        synthetic: .notObserved, clockAlignment: .unverified,
+                                        detail: "bounded test stream")
+    let data = try JSONEncoder().encode(status)
+    let decoded = try JSONDecoder().decode(IOSLogCollectionStatus.self, from: data)
+    #expect(decoded.source == .osLogUnifiedLogging)
+    #expect(decoded.state == .partial)
+    #expect(decoded.redaction == .possible)
+    #expect(decoded.droppedRecords == .unverified)
+    #expect(decoded.synthetic == .notObserved)
+    #expect(decoded.clockAlignment == .unverified)
+}
+
 /// Replays private, real device output without checking it into the repository.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["RVI_IOS_LOG_AUDIT"] != nil))
 func physicalIOSLogImport() throws {

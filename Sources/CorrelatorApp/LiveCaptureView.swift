@@ -62,6 +62,8 @@ extension ContentView {
                                 .font(.caption).foregroundStyle(.secondary)
                             Text("Device logs provide unscored endpoint context. Offset stays 0 ms, alignment unverified. Private fields and missing messages remain unavailable; log loss is not measurable.")
                                 .font(.caption).foregroundStyle(.secondary)
+                            Text("Capability labels: \(iosLogCapabilityLabels().map(\.rawValue).joined(separator: " · ")). Live capture currently implements only OSLog / Unified Logging through the device trace relay; the other labels remain distinct, unavailable import/capability states.")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }.disabled(liveStarting)
                     HStack(alignment: .top, spacing: 14) {
@@ -86,8 +88,9 @@ extension ContentView {
                             .buttonStyle(.bordered).accessibilityIdentifier("capture.revealSession")
                     }
                     if let status = liveStatus {
-                        if let pid = status.iosLogPID {
-                            Text("iPhone OS trace · collector PID \(pid) · \(status.iosLogBytes ?? 0) bytes saved · \(imports[.iosLog]?.observations.count ?? 0) decoded records · loss unknown")
+                        if let collection = status.iosLogStatus {
+                            let collector = status.iosLogPID.map { "collector PID \($0)" } ?? "collector not started"
+                            Text("\(collection.source.rawValue) · \(collection.state.rawValue) · \(collector) · \(status.iosLogBytes ?? 0) bytes saved · \(imports[.iosLog]?.observations.count ?? 0) decoded records · dropped: \(collection.droppedRecords.rawValue) · redaction: \(collection.redaction.rawValue)")
                                 .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("capture.iosLogs.health")
                         }
                         HStack(spacing: 22) {

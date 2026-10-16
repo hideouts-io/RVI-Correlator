@@ -116,6 +116,27 @@ func runCapture(device: String, storage: ProtectedCaptureDirectory, controlDirec
                                           logPID: processes.dropFirst(2).first?.processIdentifier,
                                           iosLogPID: processes.dropFirst(3).first?.processIdentifier, iosLogStreamStartedAt: iosLogStartedAt,
                                           iosLogBytes: iosConfig == nil ? nil : try (FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("ios-log.ndjson").path)[.size] as? NSNumber)?.uint64Value,
+                                          iosLogStatus: {
+                                              guard let config = iosConfig else {
+                                                  return IOSLogCollectionStatus(source: .osLogUnifiedLogging, state: .unavailable,
+                                                                                redaction: .unverified, droppedRecords: .unverified,
+                                                                                synthetic: .notObserved, clockAlignment: .unverified,
+                                                                                detail: "Optional iPhone OSLog / Unified Logging capture was not requested for this session.")
+                                              }
+                                              let state: IOSLogCollectionState
+                                              switch phase {
+                                              case "running": state = processes.count > 3 ? .streaming : .starting
+                                              case "stopped": state = .stopped
+                                              case "failed":
+                                                  let bytes = (try? FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("ios-log.ndjson").path)[.size] as? NSNumber)?.uint64Value ?? 0
+                                                  state = bytes > 0 ? .partial : .failed
+                                              default: state = .starting
+                                              }
+                                              return IOSLogCollectionStatus(source: .osLogUnifiedLogging, state: state,
+                                                                            redaction: .possible, droppedRecords: .unverified,
+                                                                            synthetic: .notObserved, clockAlignment: .unverified,
+                                                                            detail: "\(config.service) relay, PID-scoped default/error/fault stream; redaction and transport loss are not fully measurable.")
+                                          }(),
                                           error: error,
                                           rviPackets: phone.captured, rviDropped: phone.dropped,
                                           pktapPackets: mac.captured, pktapDropped: mac.dropped), to: storage)

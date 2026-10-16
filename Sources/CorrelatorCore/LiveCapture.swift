@@ -111,14 +111,16 @@ public struct LiveCaptureStatus: Codable, Sendable {
     public let iosLogPID: Int32?
     public let iosLogStreamStartedAt: Date?
     public let iosLogBytes: UInt64?
+    public let iosLogStatus: IOSLogCollectionStatus?
     public let error: String?
     public let rviPackets: Int?
     public let rviDropped: Int?
     public let pktapPackets: Int?
     public let pktapDropped: Int?
 
-    public init(phase: String, startedAt: Date, updatedAt: Date, rviInterface: String?, rviStreamStartedAt: Date?, pktapStreamStartedAt: Date?, logStreamStartedAt: Date?, rviPID: Int32?, pktapPID: Int32?, logPID: Int32?, iosLogPID: Int32?, iosLogStreamStartedAt: Date?, iosLogBytes: UInt64?, error: String?, rviPackets: Int?, rviDropped: Int?, pktapPackets: Int?, pktapDropped: Int?) {
+    public init(phase: String, startedAt: Date, updatedAt: Date, rviInterface: String?, rviStreamStartedAt: Date?, pktapStreamStartedAt: Date?, logStreamStartedAt: Date?, rviPID: Int32?, pktapPID: Int32?, logPID: Int32?, iosLogPID: Int32?, iosLogStreamStartedAt: Date?, iosLogBytes: UInt64?, iosLogStatus: IOSLogCollectionStatus?, error: String?, rviPackets: Int?, rviDropped: Int?, pktapPackets: Int?, pktapDropped: Int?) {
         self.iosLogPID = iosLogPID; self.iosLogStreamStartedAt = iosLogStreamStartedAt; self.iosLogBytes = iosLogBytes
+        self.iosLogStatus = iosLogStatus
         self.phase = phase; self.startedAt = startedAt; self.updatedAt = updatedAt
         self.rviInterface = rviInterface; self.rviStreamStartedAt = rviStreamStartedAt
         self.pktapStreamStartedAt = pktapStreamStartedAt; self.logStreamStartedAt = logStreamStartedAt

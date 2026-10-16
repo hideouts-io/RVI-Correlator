@@ -1,6 +1,58 @@
 import CryptoKit
 import Foundation
 
+public enum IOSLogSourceLabel: String, Codable, CaseIterable, Sendable {
+    case osLogUnifiedLogging = "OSLog / Unified Logging"
+    case syslogCompatibility = "Syslog compatibility"
+    case dvtTelemetry = "DVT telemetry"
+    case logarchive = "Unified Log archive"
+    case sysdiagnose = "Sysdiagnose"
+    case syntheticFixture = "Synthetic fixture"
+}
+
+public enum IOSLogCollectionState: String, Codable, Sendable {
+    case unavailable
+    case starting
+    case streaming
+    case partial
+    case stopped
+    case failed
+}
+
+public enum IOSLogEvidenceCondition: String, Codable, Sendable {
+    case notObserved
+    case observed
+    case possible
+    case unverified
+    case notApplicable
+}
+
+public struct IOSLogCollectionStatus: Codable, Sendable {
+    public let source: IOSLogSourceLabel
+    public let state: IOSLogCollectionState
+    public let redaction: IOSLogEvidenceCondition
+    public let droppedRecords: IOSLogEvidenceCondition
+    public let synthetic: IOSLogEvidenceCondition
+    public let clockAlignment: IOSLogEvidenceCondition
+    public let detail: String
+
+    public init(source: IOSLogSourceLabel, state: IOSLogCollectionState, redaction: IOSLogEvidenceCondition,
+                droppedRecords: IOSLogEvidenceCondition, synthetic: IOSLogEvidenceCondition,
+                clockAlignment: IOSLogEvidenceCondition, detail: String) {
+        self.source = source
+        self.state = state
+        self.redaction = redaction
+        self.droppedRecords = droppedRecords
+        self.synthetic = synthetic
+        self.clockAlignment = clockAlignment
+        self.detail = detail
+    }
+}
+
+public func iosLogCapabilityLabels() -> [IOSLogSourceLabel] {
+    IOSLogSourceLabel.allCases
+}
+
 /// Optional collector contract. Device selection is inherited from the RVI session.
 public struct IOSLogConfiguration: Codable, Sendable {
     public let executable: String

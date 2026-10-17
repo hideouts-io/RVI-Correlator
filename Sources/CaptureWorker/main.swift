@@ -35,9 +35,7 @@ func rviInterfaces() throws -> Set<String> {
 }
 
 func writeStatus(_ status: LiveCaptureStatus, to directory: ProtectedCaptureDirectory) throws {
-    let encoder = JSONEncoder()
-    encoder.dateEncodingStrategy = .iso8601
-    try directory.write(encoder.encode(status), name: "status.json")
+    try persistCaptureStatus(status, to: directory)
 }
 
 func startProcess(_ executable: String, _ arguments: [String], directory: ProtectedCaptureDirectory, output: String, error: String) throws -> Process {
@@ -185,6 +183,7 @@ func runCapture(device: String, storage: ProtectedCaptureDirectory, controlDirec
             throw CaptureFailure.process("A requested capture stream exited during startup. Inspect tcpdump, Unified Log, and optional ios-log.stderr in \(directory.path).")
         }
         try status("running", interface, processes, nil)
+        var periodicStatusDegraded = false
         var nextCounters = Date().addingTimeInterval(5)
         while !FileManager.default.fileExists(atPath: controlDirectory.appendingPathComponent("stop.request").path) {
             guard try captureRequester(requester.pid) == requester else {
@@ -209,7 +208,15 @@ func runCapture(device: String, storage: ProtectedCaptureDirectory, controlDirec
                 kill(mac.processIdentifier, SIGINFO)
                 nextCounters = Date().addingTimeInterval(5)
             }
-            try status("running", interface, processes, nil)
+            if let failure = try periodicCaptureStatusFailure(in: storage, update: { try status("running", interface, processes, nil) }) {
+                if !periodicStatusDegraded {
+                    fputs("capture_status phase=running persistence=failed acquisition=continuing detail=\(failure.localizedDescription.prefix(500))\n", stderr)
+                }
+                periodicStatusDegraded = true
+            } else if periodicStatusDegraded {
+                fputs("capture_status phase=running persistence=recovered acquisition=continuing\n", stderr)
+                periodicStatusDegraded = false
+            }
             Thread.sleep(forTimeInterval: 1)
         }
         try status("stopping", interface, processes, nil)

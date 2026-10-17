@@ -150,6 +150,10 @@ public final class ProtectedCaptureDirectory {
         self.url = url; self.handle = handle; self.ownerUID = ownerUID
     }
 
+    public func validateProtection() throws {
+        try validateCaptureDirectory(handle.fileDescriptor, ownerUID: ownerUID)
+    }
+
     public func createFile(_ name: String) throws -> FileHandle {
         try captureName(name)
         try validateCaptureDirectory(handle.fileDescriptor, ownerUID: ownerUID)

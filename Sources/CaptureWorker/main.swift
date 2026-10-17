@@ -74,7 +74,9 @@ func stopProcess(_ process: Process) throws {
 /// forwarded to the unprivileged logger. Output is unbuffered; final import
 /// must still verify that the last NDJSON record is complete before hashing.
 func stopIOSLog(_ process: Process) throws {
-    guard process.isRunning else { return }
+    guard process.isRunning else {
+        throw CaptureFailure.process("iPhone log collector launcher exited before the requested stop. Inspect ios-log.stderr; the session cannot be finalized as a normal stop.")
+    }
     process.terminate()
     let deadline = Date().addingTimeInterval(15)
     while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
@@ -86,6 +88,19 @@ func stopIOSLog(_ process: Process) throws {
 func counters(_ url: URL) throws -> CaptureCounters {
     let text = try String(contentsOf: url, encoding: .utf8)
     return parseTcpdumpCounters(text)
+}
+
+func iosLogFileStatus(_ url: URL) throws -> (bytes: UInt64?, lastByte: UInt8?) {
+    guard FileManager.default.fileExists(atPath: url.path) else { return (nil, nil) }
+    let handle = try FileHandle(forReadingFrom: url)
+    defer { try? handle.close() }
+    let bytes = try handle.seekToEnd()
+    guard bytes > 0 else { return (0, nil) }
+    try handle.seek(toOffset: bytes - 1)
+    guard let tail = try handle.read(upToCount: 1), tail.count == 1 else {
+        throw CaptureFailure.process("Could not read the last byte of the iPhone log at \(url.path) while writing capture status.")
+    }
+    return (bytes, tail[0])
 }
 
 func runCapture(device: String, storage: ProtectedCaptureDirectory, controlDirectory: URL, requester: CaptureRequester, iosConfig: IOSLogConfiguration?) throws {
@@ -109,13 +124,32 @@ func runCapture(device: String, storage: ProtectedCaptureDirectory, controlDirec
     func status(_ phase: String, _ interface: String?, _ processes: [Process], _ error: String?) throws {
         let phone = try counters(directory.appendingPathComponent("iphone-tcpdump.stderr"))
         let mac = try counters(directory.appendingPathComponent("mac-tcpdump.stderr"))
+        let iosFile: (bytes: UInt64?, lastByte: UInt8?) = iosConfig == nil ? (nil, nil) :
+            try iosLogFileStatus(directory.appendingPathComponent("ios-log.ndjson"))
         try writeStatus(LiveCaptureStatus(phase: phase, startedAt: started, updatedAt: Date(), rviInterface: interface,
                                           rviStreamStartedAt: phoneStartedAt, pktapStreamStartedAt: macStartedAt,
                                           logStreamStartedAt: logStartedAt,
                                           rviPID: processes.first?.processIdentifier, pktapPID: processes.dropFirst().first?.processIdentifier,
                                           logPID: processes.dropFirst(2).first?.processIdentifier,
                                           iosLogPID: processes.dropFirst(3).first?.processIdentifier, iosLogStreamStartedAt: iosLogStartedAt,
-                                          iosLogBytes: iosConfig == nil ? nil : try (FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("ios-log.ndjson").path)[.size] as? NSNumber)?.uint64Value,
+                                          iosLogBytes: iosFile.bytes,
+                                          iosLogStatus: {
+                                              guard let config = iosConfig else {
+                                                  return IOSLogCollectionStatus(source: .osLogUnifiedLogging, state: .unavailable,
+                                                                                evidence: .notObserved,
+                                                                                redaction: .unverified, droppedRecords: .unverified,
+                                                                                synthetic: .notObserved, clockAlignment: .unverified,
+                                                                                detail: "Optional iPhone OSLog / Unified Logging capture was not requested for this session.")
+                                              }
+                                              return IOSLogCollectionStatus(source: .osLogUnifiedLogging,
+                                                                            state: iosLogCollectionState(phase: phase, requested: true,
+                                                                                                         processLaunched: processes.count > 3,
+                                                                                                         processAlive: processes.dropFirst(3).first?.isRunning == true),
+                                                                            evidence: iosLogEvidenceObservation(byteCount: iosFile.bytes, lastByte: iosFile.lastByte),
+                                                                            redaction: .possible, droppedRecords: .unverified,
+                                                                            synthetic: .notObserved, clockAlignment: .unverified,
+                                                                            detail: "\(config.service) relay, PID-scoped default/error/fault request. Saved bytes and complete lines do not prove valid records or complete coverage; redaction and transport loss are not fully measurable.")
+                                          }(),
                                           error: error,
                                           rviPackets: phone.captured, rviDropped: phone.dropped,
                                           pktapPackets: mac.captured, pktapDropped: mac.dropped), to: storage)
@@ -199,7 +233,7 @@ func runCapture(device: String, storage: ProtectedCaptureDirectory, controlDirec
             }
             if iosConfig != nil {
                 let size = try FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("ios-log.ndjson").path)[.size] as? NSNumber
-                if let size, size.int64Value > 60_000_000 { throw CaptureFailure.process("iPhone log reached the 60 MB live limit. Streams were stopped; preserve the session and start a shorter capture.") }
+                if let size, iosLogLiveLimitReached(bytes: size.uint64Value) { throw CaptureFailure.process("iPhone log reached the 60 MB live limit. Streams were stopped; preserve the session and start a shorter capture.") }
             }
             guard processes.allSatisfy(\.isRunning) else {
                 throw CaptureFailure.process("A capture stream exited unexpectedly. Inspect the session stderr files in \(directory.path).")
@@ -212,9 +246,12 @@ func runCapture(device: String, storage: ProtectedCaptureDirectory, controlDirec
             try status("running", interface, processes, nil)
             Thread.sleep(forTimeInterval: 1)
         }
+        guard processes.allSatisfy(\.isRunning) else {
+            throw CaptureFailure.process("A requested capture stream exited before Stop could complete. Inspect the session stderr files; the session cannot be finalized as a normal stop.")
+        }
         try status("stopping", interface, processes, nil)
-        for process in processes.prefix(3) { try stopProcess(process) }
         if let iosLog = processes.dropFirst(3).first { try stopIOSLog(iosLog) }
+        for process in processes.prefix(3) { try stopProcess(process) }
         try storage.write(captureContextData(CaptureContext(start: bootStart, end: try sampleHostBoot())), name: "capture-context.json")
         _ = try command(rvictl, ["-x", device])
         rviNeedsTeardown = false
@@ -223,7 +260,9 @@ func runCapture(device: String, storage: ProtectedCaptureDirectory, controlDirec
         var message = error.localizedDescription
         for (index, process) in processes.enumerated() {
             do {
-                if index == 3 { try stopIOSLog(process) }
+                if index == 3 {
+                    if process.isRunning { try stopIOSLog(process) }
+                }
                 else { try stopProcess(process) }
             }
             catch { message += " Cleanup of process \(process.processIdentifier) failed: \(error.localizedDescription)" }

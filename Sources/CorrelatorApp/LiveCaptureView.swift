@@ -46,6 +46,7 @@ extension ContentView {
                             liveFinalized = false
                             liveWarning = nil
                             liveHealthFailure = nil
+                            iosLogImportFailure = nil
                         }
                     }
                 }
@@ -61,6 +62,8 @@ extension ContentView {
                             Text("Choose one current device PID from Console or idevicesyslog pidlist. Uses the paired device’s OS trace relay at default/error/fault levels; no automatic installation. A restarted process needs a new capture. PID reuse cannot be excluded.")
                                 .font(.caption).foregroundStyle(.secondary)
                             Text("Device logs provide unscored endpoint context. Offset stays 0 ms, alignment unverified. Private fields and missing messages remain unavailable; log loss is not measurable.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Text("Capability labels: \(iosLogCapabilityLabels().map(\.rawValue).joined(separator: " · ")). Live capture currently implements only OSLog / Unified Logging through the device trace relay; the other labels remain distinct, unavailable import/capability states.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }.disabled(liveStarting)
@@ -86,9 +89,40 @@ extension ContentView {
                             .buttonStyle(.bordered).accessibilityIdentifier("capture.revealSession")
                     }
                     if let status = liveStatus {
-                        if let pid = status.iosLogPID {
-                            Text("iPhone OS trace · collector PID \(pid) · \(status.iosLogBytes ?? 0) bytes saved · \(imports[.iosLog]?.observations.count ?? 0) decoded records · loss unknown")
-                                .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("capture.iosLogs.health")
+                        if let collection = status.iosLogStatus {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("iPhone Unified Logging").font(.caption.bold())
+                                Text("Collector launcher: \(liveHealthFailure == nil ? iosLogLifecycleLabel(collection.state) : "last status may be stale")")
+                                    .accessibilityIdentifier("capture.iosLogs.collector")
+                                Text("\(liveHealthFailure == nil ? "Evidence" : "Last reported evidence"): \(iosLogImportFailure == nil ? iosLogEvidenceLabel(collection.evidence) : "Live import failed; original bytes retained")")
+                                    .accessibilityIdentifier("capture.iosLogs.evidence")
+                                Text("\(liveHealthFailure == nil ? "Saved data" : "Last reported saved data"): \(status.iosLogBytes.map { "\($0) bytes" } ?? "output file not created")")
+                                    .accessibilityIdentifier("capture.iosLogs.bytes")
+                                Text("Decoded records: \(imports[.iosLog].map { "\($0.observations.count) from the last successful import" } ?? "not yet imported")")
+                                    .accessibilityIdentifier("capture.iosLogs.decodedRecords")
+                                DisclosureGroup("Collection details") {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Source: \(collection.source.rawValue) via OS trace relay")
+                                        Text(status.iosLogPID.map { "Launcher PID: \($0)" } ?? "Launcher not started")
+                                        Text("Redaction: \(collection.redaction.rawValue)")
+                                            .accessibilityIdentifier("capture.iosLogs.redaction")
+                                        Text("Dropped records: \(collection.droppedRecords.rawValue)")
+                                            .accessibilityIdentifier("capture.iosLogs.droppedRecords")
+                                        Text("Clock alignment: \(collection.clockAlignment.rawValue)")
+                                            .accessibilityIdentifier("capture.iosLogs.clockAlignment")
+                                        Text(collection.detail)
+                                    }.font(.caption2).foregroundStyle(.secondary)
+                                }
+                                if let iosLogImportFailure {
+                                    Text("Record import failed: \(iosLogImportFailure)")
+                                        .foregroundStyle(.red).accessibilityIdentifier("capture.iosLogs.importFailure")
+                                }
+                                if collection.state == .failed, let failure = status.error {
+                                    Text("Capture failure: \(failure)")
+                                        .foregroundStyle(.red).accessibilityIdentifier("capture.iosLogs.failure")
+                                }
+                            }.font(.caption).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         HStack(spacing: 22) {
                             healthLabel("iPhone RVI", pid: status.rviPID, packets: status.rviPackets, dropped: status.rviDropped)
@@ -116,6 +150,29 @@ extension ContentView {
                 Text("RVI visibility is measured from captured packets. Loopback and inner VPN/tunnel traffic may remain unavailable. Unified Log collects default-level network and selected Apple-service events; other processes and redacted data may be absent.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+        }
+    }
+
+    func iosLogLifecycleLabel(_ state: IOSLogCollectionState) -> String {
+        switch state {
+        case .unavailable: "Not requested"
+        case .starting: "Starting"
+        case .running: "Running"
+        case .stopping: "Stopping"
+        case .stopped: "Stopped; finalization is separate"
+        case .failed: "Session failed; inspect diagnostics"
+        case .streaming: "Legacy streaming status; delivery unverified"
+        case .partial: "Legacy partial status; failure cause unverified"
+        }
+    }
+
+    func iosLogEvidenceLabel(_ evidence: IOSLogEvidenceObservation?) -> String {
+        switch evidence ?? .unknown {
+        case .unknown: "Unverified in this saved status"
+        case .notObserved: "No bytes observed"
+        case .bytesObserved: "Bytes observed; record validity unverified"
+        case .incompleteRecord: "Current file ends with an incomplete record; earlier lines may exist"
+        case .completeLinesObserved: "Complete lines observed; decode result shown separately"
         }
     }
 
@@ -175,6 +232,7 @@ extension ContentView {
         }
         liveStarting = true
         liveWarning = nil
+        iosLogImportFailure = nil
         let includeIOS = collectIOSLogs
         let executable = iosLogExecutable
         let processID = iosLogProcessID
@@ -212,9 +270,13 @@ extension ContentView {
         while !Task.isCancelled {
             do {
                 let status = try await Task.detached { try LiveCaptureService.status(session) }.value
+                guard liveSession?.id == session.id, !Task.isCancelled else { return }
                 liveStatus = status
                 if status?.phase == "failed" {
-                    liveWarning = status?.error ?? "Capture helper failed. Inspect saved diagnostics."
+                    await refreshLiveEvidence(session)
+                    guard liveSession?.id == session.id, !Task.isCancelled else { return }
+                    let detail = [status?.error, liveWarning].compactMap { $0 }.joined(separator: " ")
+                    liveWarning = detail.isEmpty ? "Capture helper failed. Inspect saved diagnostics." : detail
                     return
                 }
                 if status?.phase == "running" { await refreshLiveEvidence(session) }
@@ -223,6 +285,7 @@ extension ContentView {
                     return
                 }
             } catch {
+                guard liveSession?.id == session.id, !Task.isCancelled else { return }
                 liveHealthFailure = error.localizedDescription
                 liveWarning = error.localizedDescription
                 return
@@ -247,23 +310,38 @@ extension ContentView {
             let existing = imports
             let oldPhone = existing[.iphone]?.observations ?? []
             let oldMac = existing[.mac]?.observations ?? []
-            let result = try await Task.detached(priority: .userInitiated) { () throws -> ([ImportedEvidence], Investigation?) in
+            let result = try await Task.detached(priority: .userInitiated) { () throws -> (items: [ImportedEvidence], investigation: Investigation?, iosLogFailure: String?) in
                 let updates = try LiveCaptureService.liveEvidence(session, existingPhone: oldPhone, existingMac: oldMac)
-                let items = try updates.map { update -> ImportedEvidence in
+                let items = try updates.items.map { update -> ImportedEvidence in
                     guard update.artifact.source == .iphone || update.artifact.source == .mac,
                           let previous = existing[update.artifact.source] else { return update }
                     return try mergeLiveCapture(previous, update: update)
                 }
-                guard items.contains(where: { $0.artifact.source == .iphone }),
-                      items.contains(where: { $0.artifact.source == .mac }) else { return (items, nil) }
-                return (items, try correlate(items, settings: settings, isDemonstration: false))
+                var displayedItems = items
+                if updates.iosLogFailure != nil, let previous = existing[.iosLog] {
+                    let old = previous.artifact
+                    let warning = "Live iPhone OS trace import failed after this snapshot. The current file may contain undecoded bytes; this prefix is not final evidence."
+                    let warnings = old.warnings.contains(warning) ? old.warnings : old.warnings + [warning]
+                    let artifact = Artifact(id: old.id, source: old.source, path: old.path, sha256: old.sha256,
+                                            bytes: old.bytes, records: old.records, decoder: old.decoder,
+                                            offsetMicroseconds: old.offsetMicroseconds, warnings: warnings)
+                    displayedItems.append(ImportedEvidence(artifact: artifact, observations: previous.observations))
+                }
+                guard displayedItems.contains(where: { $0.artifact.source == .iphone }),
+                      displayedItems.contains(where: { $0.artifact.source == .mac }) else { return (displayedItems, nil, updates.iosLogFailure) }
+                return (displayedItems, try correlate(displayedItems, settings: settings, isDemonstration: false), updates.iosLogFailure)
             }.value
-            if !result.0.isEmpty {
-                imports = Dictionary(uniqueKeysWithValues: result.0.map { ($0.artifact.source, $0) })
-                investigation = result.1
+            guard liveSession?.id == session.id, !Task.isCancelled else { return }
+            if !result.items.isEmpty {
+                imports = Dictionary(uniqueKeysWithValues: result.items.map { ($0.artifact.source, $0) })
+                investigation = result.investigation
             }
-            liveWarning = nil
-        } catch { liveWarning = "Live evidence refresh failed: \(error.localizedDescription)" }
+            iosLogImportFailure = result.iosLogFailure
+            liveWarning = result.iosLogFailure.map { "iPhone record import failed: \($0). Previously decoded records are retained; final import is still required." }
+        } catch {
+            guard liveSession?.id == session.id, !Task.isCancelled else { return }
+            liveWarning = "Live evidence refresh failed: \(error.localizedDescription)"
+        }
     }
 
     func finalizeLiveEvidence(_ session: LiveSession) async {
@@ -275,11 +353,16 @@ extension ContentView {
                 let items = try LiveCaptureService.finalEvidence(session, existingPhone: oldPhone, existingMac: oldMac)
                 return (items, try correlate(items, settings: settings, isDemonstration: false))
             }.value
+            guard liveSession?.id == session.id, !Task.isCancelled else { return }
             imports = Dictionary(uniqueKeysWithValues: result.0.map { ($0.artifact.source, $0) })
             investigation = result.1
             sessionContext = try LiveCaptureService.savedContext(session.directory)
             liveFinalized = true
             liveWarning = nil
-        } catch { liveWarning = "Final evidence verification failed: \(error.localizedDescription)" }
+            iosLogImportFailure = nil
+        } catch {
+            guard liveSession?.id == session.id, !Task.isCancelled else { return }
+            liveWarning = "Final evidence verification failed: \(error.localizedDescription)"
+        }
     }
 }

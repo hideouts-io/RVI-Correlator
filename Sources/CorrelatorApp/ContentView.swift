@@ -54,6 +54,7 @@ struct ContentView: View {
     @State var selectedDeviceID = ""
     @State var liveSession: LiveSession?
     @State var liveStatus: LiveCaptureStatus?
+    @State var iosLogImportFailure: String?
     @State var liveFinalized = false
     @State var liveStarting = false
     @State var collectIOSLogs = false

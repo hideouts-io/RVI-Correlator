@@ -2,6 +2,14 @@ import CorrelatorCore
 import CryptoKit
 import Foundation
 
+struct StaleCaptureStatusError: LocalizedError, Sendable {
+    let diagnosticsPath: String
+
+    var errorDescription: String? {
+        "Capture helper health has not updated for over 12 seconds. Inspect \(diagnosticsPath) and stop the session if necessary."
+    }
+}
+
 struct LiveSession: Sendable {
     let id: String
     let directory: URL
@@ -164,7 +172,7 @@ enum LiveCaptureService {
         decoder.dateDecodingStrategy = .iso8601
         let status = try decoder.decode(LiveCaptureStatus.self, from: Data(contentsOf: url))
         if status.phase == "running" && Date().timeIntervalSince(status.updatedAt) > 12 {
-            throw AnalysisError.invalidInput("Capture helper health has not updated for over 12 seconds. Inspect \(session.captureDirectory.path)/helper.stderr and stop the session if necessary.")
+            throw StaleCaptureStatusError(diagnosticsPath: session.captureDirectory.appendingPathComponent("helper.stderr").path)
         }
         return status
     }

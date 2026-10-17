@@ -112,7 +112,8 @@ extension ContentView {
                         }
                     }
                 }
-                if let liveWarning { Label(liveWarning, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
+                if let liveHealthFailure { Label(liveHealthFailure, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
+                if let liveWarning, liveWarning != liveHealthFailure { Label(liveWarning, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
                 Text("RVI visibility is measured from captured packets. Loopback and inner VPN/tunnel traffic may remain unavailable. Unified Log collects default-level network and selected Apple-service events; other processes and redacted data may be absent.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -212,6 +213,7 @@ extension ContentView {
         while !Task.isCancelled {
             do {
                 let status = try await Task.detached { try LiveCaptureService.status(session) }.value
+                if status != nil { liveHealthFailure = nil }
                 liveStatus = status
                 if status?.phase == "failed" {
                     liveWarning = status?.error ?? "Capture helper failed. Inspect saved diagnostics."
@@ -222,6 +224,9 @@ extension ContentView {
                     await finalizeLiveEvidence(session)
                     return
                 }
+            } catch let failure as StaleCaptureStatusError {
+                liveHealthFailure = failure.localizedDescription
+                await refreshLiveEvidence(session)
             } catch {
                 liveHealthFailure = error.localizedDescription
                 liveWarning = error.localizedDescription

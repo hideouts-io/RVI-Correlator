@@ -13,10 +13,45 @@ public enum IOSLogSourceLabel: String, Codable, CaseIterable, Sendable {
 public enum IOSLogCollectionState: String, Codable, Sendable {
     case unavailable
     case starting
+    case running
+    case stopping
     case streaming
     case partial
     case stopped
     case failed
+}
+
+public enum IOSLogEvidenceObservation: String, Codable, Sendable {
+    case unknown
+    case notObserved
+    case bytesObserved
+    case incompleteRecord
+    case completeLinesObserved
+}
+
+/// Collection state describes the launched process, not the validity of its output.
+/// Streaming and partial remain decodable for sessions written before this model split.
+public func iosLogCollectionState(phase: String, requested: Bool, processLaunched: Bool, processAlive: Bool) -> IOSLogCollectionState {
+    guard requested else { return .unavailable }
+    switch phase {
+    case "running": return processLaunched ? (processAlive ? .running : .failed) : .starting
+    case "stopping": return .stopping
+    case "stopped": return .stopped
+    case "failed": return .failed
+    default: return .starting
+    }
+}
+
+/// A trailing newline proves a complete line, but not that its JSON is valid.
+public func iosLogEvidenceObservation(byteCount: UInt64?, lastByte: UInt8?) -> IOSLogEvidenceObservation {
+    guard let byteCount else { return .unknown }
+    guard byteCount > 0 else { return .notObserved }
+    guard let lastByte else { return .bytesObserved }
+    return lastByte == 10 ? .completeLinesObserved : .incompleteRecord
+}
+
+public func iosLogLiveLimitReached(bytes: UInt64) -> Bool {
+    bytes > 60_000_000
 }
 
 public enum IOSLogEvidenceCondition: String, Codable, Sendable {
@@ -30,17 +65,19 @@ public enum IOSLogEvidenceCondition: String, Codable, Sendable {
 public struct IOSLogCollectionStatus: Codable, Sendable {
     public let source: IOSLogSourceLabel
     public let state: IOSLogCollectionState
+    public let evidence: IOSLogEvidenceObservation?
     public let redaction: IOSLogEvidenceCondition
     public let droppedRecords: IOSLogEvidenceCondition
     public let synthetic: IOSLogEvidenceCondition
     public let clockAlignment: IOSLogEvidenceCondition
     public let detail: String
 
-    public init(source: IOSLogSourceLabel, state: IOSLogCollectionState, redaction: IOSLogEvidenceCondition,
+    public init(source: IOSLogSourceLabel, state: IOSLogCollectionState, evidence: IOSLogEvidenceObservation?, redaction: IOSLogEvidenceCondition,
                 droppedRecords: IOSLogEvidenceCondition, synthetic: IOSLogEvidenceCondition,
                 clockAlignment: IOSLogEvidenceCondition, detail: String) {
         self.source = source
         self.state = state
+        self.evidence = evidence
         self.redaction = redaction
         self.droppedRecords = droppedRecords
         self.synthetic = synthetic

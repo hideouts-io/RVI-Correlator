@@ -194,9 +194,19 @@ extension ContentView {
                             Label(source.rawValue, systemImage: source == .iphone ? "iphone.gen3" : source == .mac ? "desktopcomputer" : "list.bullet.rectangle")
                                 .font(.headline)
                             Spacer()
-                            if imports[source] != nil { Text("IMPORTED").font(.caption.bold()).foregroundStyle(.green) }
+                            if imports[source] != nil {
+                                let provisionalIOSLog = source == .iosLog && liveSession != nil && !liveFinalized
+                                Text(provisionalIOSLog ? (iosLogImportFailure == nil ? "LIVE SNAPSHOT" : "EARLIER LIVE SNAPSHOT") : "IMPORTED")
+                                    .font(.caption.bold()).foregroundStyle(provisionalIOSLog ? .orange : .green)
+                            }
                         }
                         if let artifact = imports[source]?.artifact {
+                            if source == .iosLog && liveSession != nil && !liveFinalized {
+                                Text(iosLogImportFailure == nil ?
+                                     "The records and hash below describe a live snapshot of complete lines. Final import has not verified the current file." :
+                                     "The current growing file failed live import. The records and hash below describe the last successful snapshot; final import has not verified the current file.")
+                                    .font(.caption).foregroundStyle(.orange)
+                            }
                             detailLine("File", artifact.path)
                             detailLine("SHA-256", artifact.sha256)
                             detailLine("Records", "\(artifact.records)")

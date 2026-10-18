@@ -47,9 +47,11 @@ enum LiveCaptureService {
     }
 
     static func iosLogConfiguration(executable: String, processID: String) throws -> IOSLogConfiguration {
-        guard executable.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: executable),
-              let pid = Int32(processID), pid > 0 else {
-            throw AnalysisError.invalidInput("iPhone logs require an installed pymobiledevice3 executable and a positive current iPhone process PID. Find the device PID in Console or idevicesyslog pidlist; Mac PIDs do not apply.")
+        guard executable.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: executable) else {
+            throw AnalysisError.invalidInput("Choose an installed pymobiledevice3 executable using an absolute path before starting iPhone logs.")
+        }
+        guard let pid = Int32(processID), pid > 0 else {
+            throw AnalysisError.invalidInput("Enter a positive current iPhone process PID from Console or idevicesyslog pidlist before starting iPhone logs; Mac PIDs do not apply.")
         }
         let process = Process(); let output = Pipe(); let errors = Pipe()
         process.executableURL = URL(fileURLWithPath: executable)

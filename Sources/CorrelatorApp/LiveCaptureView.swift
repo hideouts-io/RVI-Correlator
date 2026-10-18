@@ -47,6 +47,7 @@ extension ContentView {
                             liveWarning = nil
                             liveHealthFailure = nil
                             iosLogImportFailure = nil
+                            iosLogProcessID = ""
                         }
                     }
                 }

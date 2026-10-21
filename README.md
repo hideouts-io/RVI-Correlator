@@ -169,6 +169,8 @@ The helper creates an `rviN` interface, validates the capture interfaces, and st
 
 Unified Log is not a packet collector, so packet counters do not apply. Default-level selection, privacy redaction, and stream loss can omit useful events.
 
+After readiness, a periodic `status.json` write failure leaves the last status intact and does not by itself stop the collectors. The app marks a status older than 12 seconds **HEALTH UNKNOWN**, keeps importing live evidence, and keeps polling so a later successful write can restore visible health. Startup readiness, Stop, and finalization still require successful status writes; a missing terminal status leaves health unknown, and preserved capture files alone do not establish a finalized session.
+
 A collector exit, lost GUI process, 30-minute capture limit, or 1 GB raw-log limit ends capture with an explicit failure. Original files remain available even if finalization fails. Do not treat a directory containing files as a successfully finalized session.
 
 ### iPhone interface coverage

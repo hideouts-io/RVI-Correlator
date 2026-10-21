@@ -11,6 +11,49 @@ private func protectedFixture() throws -> (URL, FileHandle) {
     return (url, FileHandle(fileDescriptor: descriptor, closeOnDealloc: true))
 }
 
+private enum AcquisitionFixtureFailure: Error { case streamEnded }
+
+@Test func periodicStatusWriteFailurePreservesLastStatusAndAcquisitionFailuresPropagate() throws {
+    let (root, handle) = try protectedFixture()
+    defer {
+        _ = fchmod(handle.fileDescriptor, 0o700)
+        try? FileManager.default.removeItem(at: root)
+    }
+    let storage = ProtectedCaptureDirectory(url: root, handle: handle, ownerUID: geteuid())
+    let now = Date()
+    let status = LiveCaptureStatus(phase: "running", startedAt: now, updatedAt: now,
+                                   rviInterface: nil, rviStreamStartedAt: nil, pktapStreamStartedAt: nil,
+                                   logStreamStartedAt: nil, rviPID: nil, pktapPID: nil, logPID: nil,
+                                   iosLogPID: nil, iosLogStreamStartedAt: nil, iosLogBytes: nil,
+                                   error: nil, rviPackets: nil, rviDropped: nil, pktapPackets: nil, pktapDropped: nil)
+    #expect(try periodicCaptureStatusFailure(in: storage, update: { try persistCaptureStatus(status, to: storage) }) == nil)
+    let statusURL = root.appendingPathComponent("status.json")
+    let saved = try Data(contentsOf: statusURL)
+
+    guard fchmod(handle.fileDescriptor, 0o500) == 0 else {
+        throw AnalysisError.invalidInput("Could not make protected test directory read-only: errno \(errno)")
+    }
+    let failure = try periodicCaptureStatusFailure(in: storage, update: { try persistCaptureStatus(status, to: storage) })
+    #expect(failure != nil)
+    #expect(try Data(contentsOf: statusURL) == saved)
+    #expect(throws: CaptureStatusPersistenceError.self) { try persistCaptureStatus(status, to: storage) }
+    #expect(throws: AcquisitionFixtureFailure.self) {
+        try periodicCaptureStatusFailure(in: storage, update: { throw AcquisitionFixtureFailure.streamEnded })
+    }
+
+    guard fchmod(handle.fileDescriptor, 0o720) == 0 else {
+        throw AnalysisError.invalidInput("Could not make protected test directory group-writable: errno \(errno)")
+    }
+    #expect(throws: AnalysisError.self) {
+        try periodicCaptureStatusFailure(in: storage, update: { try persistCaptureStatus(status, to: storage) })
+    }
+
+    guard fchmod(handle.fileDescriptor, 0o700) == 0 else {
+        throw AnalysisError.invalidInput("Could not restore protected test directory permissions: errno \(errno)")
+    }
+    #expect(try periodicCaptureStatusFailure(in: storage, update: { try persistCaptureStatus(status, to: storage) }) == nil)
+}
+
 @Test func protectedCaptureRejectsSymlinksExistingFilesAndSessions() throws {
     let (root, handle) = try protectedFixture()
     defer { try? FileManager.default.removeItem(at: root) }

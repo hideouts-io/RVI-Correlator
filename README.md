@@ -384,7 +384,7 @@ Import uses 50,000-frame decoder batches. Each decoder pass drains bounded pipes
 swift test -j 4
 ```
 
-The current suite contains **22 regular tests** and five opt-in physical-evidence audits. Tests exercise TShark import on fabricated packets, DNS expiry/scoping, PKTAP forms, clock handling, peer ambiguity, log normalization, host context, and iPhone timestamp validation. Private device-log replay, USB-registry replay, and four-stream replay use `RVI_IOS_LOG_AUDIT`, `RVI_USB_AUDIT`, and `RVI_IOS_SESSION_AUDIT` / `RVI_IOS_SESSION_REPORT` respectively; the audit paths must refer to retained local evidence. A passing synthetic suite is not fresh physical-device validation.
+The default suite exercises TShark import on fabricated packets, DNS expiry/scoping, PKTAP forms, clock handling, peer ambiguity, log normalization, host context, and iPhone timestamp validation. Physical-evidence audits and the synthetic log-import performance check are opt-in. Device-log, USB-registry, multicast-DNS, four-stream, and session replays use `RVI_IOS_LOG_AUDIT`, `RVI_USB_AUDIT`, `RVI_MDNS_CAPTURE`, `RVI_IOS_SESSION_AUDIT` / `RVI_IOS_SESSION_REPORT`, and `RVI_AUDIT_SESSION` / `RVI_AUDIT_OUTPUT` respectively; performance uses `RVI_IOS_LOG_PERF`. Audit paths must refer to retained local evidence. A passing synthetic suite is not fresh physical-device validation.
 
 For your own preserved session, run the opt-in replay with explicit private paths:
 

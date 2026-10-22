@@ -47,9 +47,11 @@ enum LiveCaptureService {
     }
 
     static func iosLogConfiguration(executable: String, processID: String) throws -> IOSLogConfiguration {
-        guard executable.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: executable),
-              let pid = Int32(processID), pid > 0 else {
-            throw AnalysisError.invalidInput("iPhone logs require an installed pymobiledevice3 executable and a positive current iPhone process PID. Find the device PID in Console or idevicesyslog pidlist; Mac PIDs do not apply.")
+        guard executable.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: executable) else {
+            throw AnalysisError.invalidInput("Choose an installed pymobiledevice3 executable using an absolute path before starting iPhone logs.")
+        }
+        guard let pid = Int32(processID), pid > 0 else {
+            throw AnalysisError.invalidInput("Enter a positive current iPhone process PID from Console or idevicesyslog pidlist before starting iPhone logs; Mac PIDs do not apply.")
         }
         let process = Process(); let output = Pipe(); let errors = Pipe()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -154,22 +156,26 @@ enum LiveCaptureService {
     static func status(_ session: LiveSession) throws -> LiveCaptureStatus? {
         let url = session.captureDirectory.appendingPathComponent("status.json")
         let errorURL = session.captureDirectory.appendingPathComponent("helper.error")
-        if FileManager.default.fileExists(atPath: errorURL.path) {
-            throw AnalysisError.invalidInput("Capture helper failed: \(try String(contentsOf: errorURL, encoding: .utf8)). Diagnostics: \(session.captureDirectory.path)")
-        }
         if !FileManager.default.fileExists(atPath: url.path) {
+            if FileManager.default.fileExists(atPath: errorURL.path) {
+                throw AnalysisError.invalidInput("Capture helper failed before writing status: \(try String(contentsOf: errorURL, encoding: .utf8)). Diagnostics: \(session.captureDirectory.path)")
+            }
             return nil
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let status = try decoder.decode(LiveCaptureStatus.self, from: Data(contentsOf: url))
+        if status.phase == "failed" { return status }
+        if FileManager.default.fileExists(atPath: errorURL.path) {
+            throw AnalysisError.invalidInput("Capture helper failed after the last status update: \(try String(contentsOf: errorURL, encoding: .utf8)). Diagnostics: \(session.captureDirectory.path)")
+        }
         if status.phase == "running" && Date().timeIntervalSince(status.updatedAt) > 12 {
             throw AnalysisError.invalidInput("Capture helper health has not updated for over 12 seconds. Inspect \(session.captureDirectory.path)/helper.stderr and stop the session if necessary.")
         }
         return status
     }
 
-    static func liveEvidence(_ session: LiveSession, existingPhone: [Observation], existingMac: [Observation]) throws -> [ImportedEvidence] {
+    static func liveEvidence(_ session: LiveSession, existingPhone: [Observation], existingMac: [Observation]) throws -> (items: [ImportedEvidence], iosLogFailure: String?) {
         let phone = session.captureDirectory.appendingPathComponent("iphone-rvi.pcapng")
         let mac = session.captureDirectory.appendingPathComponent("mac-pktap.pcapng")
         let phoneItem = try hasPackets(phone) ? importLiveCapture(phone, source: .iphone, sessionID: session.id,
@@ -182,9 +188,16 @@ enum LiveCaptureService {
         let macPackets = try appendPacketObservations(existingMac, incoming: macItem?.observations ?? [])
         let normalization = try normalizeLiveLog(raw, destination: normalized, processIDs: processIDs(macPackets), tokens: logTokens(phonePackets + macPackets))
         let logItem = try stabilizeNormalizedLog(withLogNormalizationWarnings(try importUnifiedLog(normalized, offsetMicroseconds: 0), summary: normalization), sessionID: session.id)
-        let iosItem = try FileManager.default.fileExists(atPath: session.captureDirectory.appendingPathComponent("ios-log-config.json").path)
-            ? importLiveIOSLog(session.captureDirectory, sessionID: session.id, phoneArtifactID: "\(session.id)-iPhone RVI") : nil
-        return [phoneItem, macItem, logItem, iosItem].compactMap { $0 }
+        var iosItem: ImportedEvidence?
+        var iosLogFailure: String?
+        if FileManager.default.fileExists(atPath: session.captureDirectory.appendingPathComponent("ios-log-config.json").path) {
+            do {
+                iosItem = try importLiveIOSLog(session.captureDirectory, sessionID: session.id, phoneArtifactID: "\(session.id)-iPhone RVI")
+            } catch {
+                iosLogFailure = error.localizedDescription
+            }
+        }
+        return ([phoneItem, macItem, logItem, iosItem].compactMap { $0 }, iosLogFailure)
     }
 
     static func finalEvidence(_ session: LiveSession, existingPhone: [Observation], existingMac: [Observation]) throws -> [ImportedEvidence] {
